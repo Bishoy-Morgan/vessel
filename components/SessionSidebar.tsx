@@ -2,26 +2,51 @@
 
 import { useState } from 'react'
 import { useChatStore } from '@/src/store/chatStore'
-import { ChevronLeft, ChevronRight, MessageSquare, Plus } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MessageSquare, Plus, Pencil, Check } from 'lucide-react'
 
 export default function SessionSidebar() {
-  const { sessions, activeSessionId, createSession, deleteSession, setActiveSession } = useChatStore()
+  const { sessions, activeSessionId, createSession, deleteSession, setActiveSession, updateSession } = useChatStore()
   const [collapsed, setCollapsed] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingName, setEditingName] = useState('')
+
+  const handleNewSession = () => {
+    const time = new Date().toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    })
+    createSession(`New Session ${time}`)
+  }
+
+  const startRename = (e: React.MouseEvent, id: string, currentName: string) => {
+    e.stopPropagation()
+    setEditingId(id)
+    setEditingName(currentName)
+  }
+
+  const confirmRename = (e: React.MouseEvent | React.KeyboardEvent, id: string) => {
+    e.stopPropagation()
+    if (editingName.trim()) {
+      updateSession(id, { name: editingName.trim() })
+    }
+    setEditingId(null)
+  }
 
   return (
     <div
       className={`relative flex flex-col h-full border-r border-[#1a1a1a] bg-[#0a0a0a] transition-all duration-300 ${
-        collapsed ? 'w-12' : 'w-64'
+        collapsed ? 'w-14' : 'w-64'
       }`}
     >
       {/* Collapse toggle */}
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="absolute -right-3 top-[10%] z-10 flex items-center justify-center w-6 h-6 rounded-full bg-[#1a1a1a] border border-[#2a2a2a] hover:border-[#2563eb] hover:bg-[#111111] transition-all"
+        className="absolute -right-3.5 top-[10%] z-10 flex items-center justify-center w-7 h-7 rounded-full bg-[#1a1a1a] border border-[#2a2a2a] hover:border-[#2563eb] hover:bg-[#111111] transition-all"
       >
         {collapsed
-          ? <ChevronRight className="w-3 h-3 text-[#71717a]" />
-          : <ChevronLeft className="w-3 h-3 text-[#71717a]" />
+          ? <ChevronRight className="w-4 h-4 text-[#71717a]" />
+          : <ChevronLeft className="w-4 h-4 text-[#71717a]" />
         }
       </button>
 
@@ -32,11 +57,11 @@ export default function SessionSidebar() {
         )}
         <button
           type="button"
-          onClick={() => createSession(`Chat ${sessions.length + 1}`)}
-          className="flex items-center justify-center w-7 h-7 rounded-md bg-[#111111] border border-[#1a1a1a] hover:border-[#2563eb] hover:bg-[#2563eb]/10 transition-all"
+          onClick={handleNewSession}
+          className="flex items-center justify-center w-8 h-8 rounded-md bg-[#111111] border border-[#1a1a1a] hover:border-[#2563eb] hover:bg-[#2563eb]/10 transition-all"
           title="New Session"
         >
-          <Plus className="w-3.5 h-3.5 text-[#71717a] hover:text-[#2563eb]" />
+          <Plus className="w-4 h-4 text-[#71717a]" />
         </button>
       </div>
 
@@ -56,19 +81,50 @@ export default function SessionSidebar() {
                   : 'text-[#71717a] hover:bg-[#111111] hover:text-white border border-transparent'
               }`}
             >
-              <div className="flex items-center gap-2 min-w-0">
-                <MessageSquare className={`w-3 h-3 shrink-0 ${session.id === activeSessionId ? 'text-[#2563eb]' : 'text-[#71717a]'}`} />
-                <span className="truncate">{session.name}</span>
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <MessageSquare className={`w-4 h-4 shrink-0 ${session.id === activeSessionId ? 'text-[#2563eb]' : 'text-[#71717a]'}`} />
+                {editingId === session.id ? (
+                  <input
+                    autoFocus
+                    value={editingName}
+                    onChange={(e) => setEditingName(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') confirmRename(e, session.id)
+                      if (e.key === 'Escape') setEditingId(null)
+                    }}
+                    className="bg-transparent border-b border-[#2563eb] outline-none text-white w-full text-xs"
+                  />
+                ) : (
+                  <span className="truncate">{session.name}</span>
+                )}
               </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  deleteSession(session.id)
-                }}
-                className="ml-1 opacity-0 group-hover:opacity-100 text-[#71717a] hover:text-red-400 transition-all shrink-0"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-1 ml-1 shrink-0">
+                {editingId === session.id ? (
+                  <button
+                    onClick={(e) => confirmRename(e, session.id)}
+                    className="text-[#2563eb] hover:text-white transition-all"
+                  >
+                    <Check className="w-4 h-4" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={(e) => startRename(e, session.id, session.name)}
+                    className="opacity-0 group-hover:opacity-100 text-[#71717a] hover:text-white transition-all"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                )}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    deleteSession(session.id)
+                  }}
+                  className="opacity-0 group-hover:opacity-100 text-[#71717a] hover:text-red-400 transition-all text-sm"
+                >
+                  ✕
+                </button>
+              </div>
             </li>
           ))}
         </ul>
@@ -82,13 +138,13 @@ export default function SessionSidebar() {
               key={session.id}
               onClick={() => setActiveSession(session.id)}
               title={session.name}
-              className={`flex items-center justify-center w-7 h-7 rounded-md cursor-pointer transition-all ${
+              className={`flex items-center justify-center w-9 h-9 rounded-md cursor-pointer transition-all ${
                 session.id === activeSessionId
                   ? 'bg-[#2563eb]/10 border border-[#2563eb]/30'
                   : 'hover:bg-[#111111] border border-transparent'
               }`}
             >
-              <MessageSquare className={`w-3.5 h-3.5 ${session.id === activeSessionId ? 'text-[#2563eb]' : 'text-[#71717a]'}`} />
+              <MessageSquare className={`w-4 h-4 ${session.id === activeSessionId ? 'text-[#2563eb]' : 'text-[#71717a]'}`} />
             </li>
           ))}
         </ul>

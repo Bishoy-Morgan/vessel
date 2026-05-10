@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Energent — AI Agent Dashboard",
+  title: "Energent | AI Agent Dashboard",
   description: "Production-quality AI agent dashboard powered by Anthropic Claude computer use.",
 };
 
