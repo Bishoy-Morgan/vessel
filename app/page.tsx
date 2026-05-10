@@ -203,8 +203,8 @@ export default function Chat() {
       {/* Session Sidebar */}
       <SessionSidebar />
 
-      {/* Main resizable area */}
-      <div className="flex-1 hidden xl:flex">
+      {/* Main resizable area (z-0 so sidebar toggle isn’t covered along the seam) */}
+      <div className="relative z-0 flex-1 hidden xl:flex">
         <ResizablePanelGroup direction="horizontal" className="h-full">
 
           {/* LEFT PANEL: Chat + Debug */}

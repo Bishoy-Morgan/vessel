@@ -29,10 +29,10 @@ export const PromptSuggestions = ({
           key={index}
           onClick={() => submitPrompt(suggestion.prompt)}
           disabled={disabled}
-          className="group flex items-center gap-1 px-3 py-1.5 rounded-full border border-[#1a1a1a] bg-[#0a0a0a] hover:border-[#2563eb] hover:bg-[#111111] disabled:opacity-40 disabled:cursor-not-allowed transition-all text-xs text-[#71717a] hover:text-white"
+          className="group flex items-center gap-1.5 rounded-full border border-[#1a1a1a] bg-[#0a0a0a] px-3.5 py-2 text-sm text-[#71717a] transition-all hover:border-[#2563eb] hover:bg-[#111111] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
         >
           {suggestion.text.toLowerCase()}
-          <ArrowUpRight className="h-3 w-3 text-[#71717a] group-hover:text-[#2563eb] transition-colors" />
+          <ArrowUpRight className="size-3.5 shrink-0 text-[#71717a] transition-colors group-hover:text-[#2563eb]" />
         </button>
       ))}
     </div>

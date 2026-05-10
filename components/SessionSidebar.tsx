@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useChatStore } from '@/src/store/chatStore'
-import { ChevronLeft, ChevronRight, MessageSquare, Plus, Pencil, Check } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MessageSquare, Plus, Pencil, Check, X } from 'lucide-react'
 
 export default function SessionSidebar() {
   const { sessions, activeSessionId, createSession, deleteSession, setActiveSession, updateSession } = useChatStore()
@@ -35,14 +35,22 @@ export default function SessionSidebar() {
 
   return (
     <div
-      className={`relative flex flex-col h-full border-r border-[#1a1a1a] bg-[#0a0a0a] transition-all duration-300 ${
-        collapsed ? 'w-14' : 'w-64'
+      className={`relative z-40 flex flex-col h-full overflow-visible border-r border-[#1a1a1a] transition-all duration-300 ${
+        collapsed ? 'w-14' : 'w-72'
       }`}
     >
-      {/* Collapse toggle */}
+      {/* Blue (bottom-left) → black (top-right) */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden bg-black" aria-hidden />
+      <div
+        className="pointer-events-none absolute inset-0 overflow-hidden bg-gradient-to-tr from-[#2563eb]/50 via-[#080808] to-black"
+        aria-hidden
+      />
+
+      {/* Collapse toggle — high z so it isn’t covered by the chat panel header (sibling paints later in DOM) */}
       <button
+        type="button"
         onClick={() => setCollapsed(!collapsed)}
-        className="absolute -right-3.5 top-[10%] z-10 flex items-center justify-center w-7 h-7 rounded-full bg-[#1a1a1a] border border-[#2a2a2a] hover:border-[#2563eb] hover:bg-[#111111] transition-all"
+        className="absolute -right-3.5 top-1/5 z-50 flex size-7 items-center justify-center rounded-full border border-[#2a2a2a] bg-[#141414] text-[#71717a] hover:border-[#2563eb] hover:text-[#a1a1aa]"
       >
         {collapsed
           ? <ChevronRight className="w-4 h-4 text-[#71717a]" />
@@ -51,23 +59,23 @@ export default function SessionSidebar() {
       </button>
 
       {/* Header */}
-      <div className={`px-3 py-4 border-b border-[#1a1a1a] flex items-center ${collapsed ? 'justify-center' : 'justify-between'}`}>
+      <div className={`relative z-10 p-3 border-b border-[#1a1a1a] flex items-center ${collapsed ? 'justify-center' : 'justify-between'}`}>
         {!collapsed && (
           <span className="text-xs font-medium text-[#71717a] uppercase tracking-wider">Sessions</span>
         )}
         <button
           type="button"
           onClick={handleNewSession}
-          className="flex items-center justify-center w-8 h-8 rounded-md bg-[#111111] border border-[#1a1a1a] hover:border-[#2563eb] hover:bg-[#2563eb]/10 transition-all"
+          className="flex size-8 shrink-0 items-center justify-center rounded-full border border-[#2563eb]/40 bg-black text-[#93c5fd] hover:bg-[#2563eb]/15"
           title="New Session"
         >
-          <Plus className="w-4 h-4 text-[#71717a]" />
+          <Plus className="size-4" strokeWidth={2} aria-hidden />
         </button>
       </div>
 
       {/* Sessions list */}
       {!collapsed && (
-        <ul className="flex flex-col gap-0.5 flex-1 overflow-y-auto p-2">
+        <ul className="relative z-10 flex flex-col gap-1.5 flex-1 min-h-0 overflow-y-auto px-3 py-2">
           {sessions.length === 0 && (
             <li className="text-xs text-[#71717a] text-center py-4">No sessions yet</li>
           )}
@@ -75,14 +83,14 @@ export default function SessionSidebar() {
             <li
               key={session.id}
               onClick={() => setActiveSession(session.id)}
-              className={`group flex items-center justify-between px-3 py-2 rounded-md cursor-pointer text-xs transition-all ${
+              className={`group flex items-center justify-between gap-2 rounded-md px-3 py-2 text-sm transition-all cursor-pointer ${
                 session.id === activeSessionId
-                  ? 'bg-[#2563eb]/10 border border-[#2563eb]/30 text-white'
-                  : 'text-[#71717a] hover:bg-[#111111] hover:text-white border border-transparent'
+                  ? 'border border-[#2563eb]/30 bg-[#2563eb]/10 text-white'
+                  : 'border border-transparent text-[#71717a] hover:bg-[#111111] hover:text-white'
               }`}
             >
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                <MessageSquare className={`w-4 h-4 shrink-0 ${session.id === activeSessionId ? 'text-[#2563eb]' : 'text-[#71717a]'}`} />
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <MessageSquare className={`size-4 shrink-0 ${session.id === activeSessionId ? 'text-[#2563eb]' : 'text-[#71717a]'}`} />
                 {editingId === session.id ? (
                   <input
                     autoFocus
@@ -93,36 +101,42 @@ export default function SessionSidebar() {
                       if (e.key === 'Enter') confirmRename(e, session.id)
                       if (e.key === 'Escape') setEditingId(null)
                     }}
-                    className="bg-transparent border-b border-[#2563eb] outline-none text-white w-full text-xs"
+                    className="w-full border-b border-[#2563eb] bg-transparent text-sm text-white outline-none"
                   />
                 ) : (
                   <span className="truncate">{session.name}</span>
                 )}
               </div>
-              <div className="flex items-center gap-1 ml-1 shrink-0">
+              <div className="flex shrink-0 items-center gap-2">
                 {editingId === session.id ? (
                   <button
+                    type="button"
                     onClick={(e) => confirmRename(e, session.id)}
-                    className="text-[#2563eb] hover:text-white transition-all"
+                    className="p-1 text-[#2563eb] hover:text-white"
+                    title="Save"
                   >
-                    <Check className="w-4 h-4" />
+                    <Check className="size-4" strokeWidth={2} />
                   </button>
                 ) : (
                   <button
+                    type="button"
                     onClick={(e) => startRename(e, session.id, session.name)}
-                    className="opacity-0 group-hover:opacity-100 text-[#71717a] hover:text-white transition-all"
+                    className="p-1 text-[#71717a] opacity-0 hover:text-white group-hover:opacity-100"
+                    title="Rename"
                   >
-                    <Pencil className="w-4 h-4" />
+                    <Pencil className="size-4" strokeWidth={2} />
                   </button>
                 )}
                 <button
+                  type="button"
                   onClick={(e) => {
                     e.stopPropagation()
                     deleteSession(session.id)
                   }}
-                  className="opacity-0 group-hover:opacity-100 text-[#71717a] hover:text-red-400 transition-all text-sm"
+                  title="Remove"
+                  className="p-1 text-[#71717a] opacity-0 hover:text-red-400 group-hover:opacity-100"
                 >
-                  ✕
+                  <X className="size-4" strokeWidth={2} />
                 </button>
               </div>
             </li>
@@ -132,19 +146,19 @@ export default function SessionSidebar() {
 
       {/* Collapsed icons */}
       {collapsed && (
-        <ul className="flex flex-col items-center gap-1 p-2 flex-1 overflow-y-auto">
+        <ul className="relative z-10 flex flex-1 min-h-0 flex-col items-center gap-2 overflow-y-auto p-2">
           {sessions.map((session) => (
             <li
               key={session.id}
               onClick={() => setActiveSession(session.id)}
               title={session.name}
-              className={`flex items-center justify-center w-9 h-9 rounded-md cursor-pointer transition-all ${
+              className={`flex size-9 cursor-pointer items-center justify-center rounded border transition-all ${
                 session.id === activeSessionId
-                  ? 'bg-[#2563eb]/10 border border-[#2563eb]/30'
-                  : 'hover:bg-[#111111] border border-transparent'
+                  ? 'border-[#2563eb]/30 bg-[#2563eb]/10'
+                  : 'border-transparent hover:bg-[#111111]'
               }`}
             >
-              <MessageSquare className={`w-4 h-4 ${session.id === activeSessionId ? 'text-[#2563eb]' : 'text-[#71717a]'}`} />
+              <MessageSquare className={`size-4 ${session.id === activeSessionId ? 'text-[#2563eb]' : 'text-[#71717a]'}`} />
             </li>
           ))}
         </ul>
