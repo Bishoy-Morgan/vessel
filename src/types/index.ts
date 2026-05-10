@@ -1,4 +1,4 @@
-import type { Message as AIMessage } from 'ai'
+import type { Message } from 'ai'
 
 export type ActionType = 'computer' | 'bash'
 
@@ -7,6 +7,7 @@ export type EventStatus = 'pending' | 'running' | 'success' | 'error' | 'aborted
 export interface AgentEvent {
   id: string
   timestamp: number
+  endTime?: number
   type: ActionType
   payload: Record<string, unknown>
   status: EventStatus
@@ -30,7 +31,7 @@ export interface BashToolCall {
 export interface Session {
   id: string
   name: string
-  messages: AIMessage[]
+  messages: Message[] 
   createdAt: number
   updatedAt: number
 }

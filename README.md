@@ -52,7 +52,7 @@ onToolCall: ({ toolCall }) => {
 ### TypeScript
 - No `any` types
 - Discriminated unions for `ToolCall` (`computer` | `bash`)
-- Strict separation between `AIMessage` (from `ai` package) and domain types
+- Resolved Message vs UIMessage type conflict — UIMessage extends Message, sessions store Message[] to satisfy both setMessages and updateSession without casting
 
 ---
 
@@ -79,7 +79,6 @@ components/
   SessionSidebar.tsx        # Collapsible session management
   DebugPanel.tsx            # Collapsible event store visualizer
   ToolCallDetails.tsx       # Expanded tool call view (right panel)
-  ToolCallVisualization.tsx # Inline tool call chips in chat
 app/
   page.tsx        # Main dashboard layout
   api/chat/       # Anthropic computer use stream endpoint
@@ -112,7 +111,6 @@ pnpm dev
 
 ## What I Would Add With More Time
 - End-to-end tests for the event pipeline
-- Event duration tracking (start/end timestamps per tool call)
 - Agent status persistence across sessions
 - Mobile-responsive layout improvements
 - Optimistic UI updates when switching sessions
@@ -125,6 +123,6 @@ pnpm dev
 |---|---|
 | Two Zustand stores | Isolate chat state from VNC to prevent re-renders |
 | `React.memo` with explicit comparator | Guarantee VNC stability regardless of chat updates |
-| `AIMessage` from `ai` package | Avoid type conflicts with `useChat` internal state |
+| `Message[]` in session store | `UIMessage` extends `Message` — storing `Message[]` satisfies both `setMessages` and `updateSession` without casting |
 | Zustand `persist` | Zero-config localStorage sync for sessions |
 | Discriminated unions for ToolCall | TypeScript narrows correctly in switch statements |

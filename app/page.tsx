@@ -4,7 +4,7 @@ import { PreviewMessage } from "@/components/message";
 import { getDesktopURL } from "@/lib/sandbox/utils";
 import { useScrollToBottom } from "@/lib/use-scroll-to-bottom";
 import { useChat } from "@ai-sdk/react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Input } from "@/components/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -62,14 +62,28 @@ export default function Chat() {
         status: 'running',
       });
     },
-    onFinish: () => {
+    onFinish: (message) => {
+      message.parts?.forEach((part) => {
+        if (part.type === 'tool-invocation') {
+          const { toolCallId, state } = part.toolInvocation;
+          const endTime = Date.now();
+          const event = useEventStore.getState().events.find(e => e.id === toolCallId);
+          if (event) {
+            useEventStore.getState().updateEvent(toolCallId, {
+              status: state === 'result' ? 'success' : 'error',
+              endTime,
+              duration: endTime - event.timestamp,
+            });
+          }
+        }
+      });
+    
       if (activeSessionId) {
         updateSession(activeSessionId, {
-          messages: messages as never[],
+          messages: messagesRef.current,
           updatedAt: Date.now(),
         });
       }
-      useEventStore.getState().clearEvents();
     },
     onError: (error) => {
       console.error(error);
@@ -81,15 +95,24 @@ export default function Chat() {
     },
   });
 
+  const messagesRef = useRef(messages);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  const handleSubmitWithClear = (e: React.FormEvent<HTMLFormElement>) => {
+    useEventStore.getState().clearEvents();
+    handleSubmit(e);
+  };
+
   // Sync messages when active session changes
   useEffect(() => {
     if (activeSession) {
-      setMessages(activeSession.messages as never[]);
+      setMessages(activeSession.messages);
     } else {
       setMessages([]);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSessionId]);
+  }, [activeSessionId]); // eslint-disable-line react-hooks/exhaustive-deps -- activeSession and setMessages intentionally omitted: activeSession is a derived object (new ref each render), setMessages is stable but not memoized by SDK
 
   const stop = () => {
     stopGeneration();
@@ -220,7 +243,7 @@ export default function Chat() {
 
             {/* Input */}
             <div className="border-t border-[#1a1a1a] bg-[#0a0a0a] p-4 shrink-0">
-              <form onSubmit={handleSubmit}>
+              <form onSubmit={handleSubmitWithClear}>
                 <Input
                   handleInputChange={handleInputChange}
                   input={input}
@@ -286,7 +309,7 @@ export default function Chat() {
           ))}
         </div>
         <div className="border-t border-[#1a1a1a] p-4">
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmitWithClear}>
             <Input
               handleInputChange={handleInputChange}
               input={input}
