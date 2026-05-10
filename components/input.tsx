@@ -21,10 +21,10 @@ export const Input = ({
   return (
     <div className="relative w-full">
       <ShadcnInput
-        className="bg-secondary py-6 w-full rounded-xl pr-12"
+        className="bg-[#111111] border border-[#1a1a1a] focus:border-[#2563eb] text-white placeholder:text-[#71717a] py-6 w-full rounded-xl pr-12 transition-colors"
         value={input}
         autoFocus
-        placeholder={"Tell me what to do..."}
+        placeholder="Tell me what to do..."
         onChange={handleInputChange}
         disabled={isLoading || isInitializing}
       />
@@ -32,7 +32,7 @@ export const Input = ({
         <button
           type="button"
           onClick={stop}
-          className="cursor-pointer absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-2 bg-black hover:bg-zinc-800 disabled:bg-zinc-300 disabled:cursor-not-allowed transition-colors"
+          className="cursor-pointer absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-2 bg-[#2563eb] hover:bg-[#1d4ed8] transition-colors"
         >
           <div className="animate-spin h-4 w-4">
             <svg className="h-4 w-4 text-white" viewBox="0 0 24 24">
@@ -57,7 +57,7 @@ export const Input = ({
         <button
           type="submit"
           disabled={isLoading || !input.trim() || isInitializing}
-          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-2 bg-black hover:bg-zinc-800 disabled:bg-zinc-300 disabled:cursor-not-allowed transition-colors"
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-2 bg-[#2563eb] hover:bg-[#1d4ed8] disabled:bg-[#1a1a1a] disabled:cursor-not-allowed transition-colors"
         >
           <ArrowUp className="h-4 w-4 text-white" />
         </button>
