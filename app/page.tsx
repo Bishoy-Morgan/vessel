@@ -184,7 +184,7 @@ export default function Chat() {
         setStreamUrl(streamUrl);
         setSandboxId(id);
         
-        const { sessions, activeSessionId, createSession, setActiveSession } = useChatStore.getState();
+        const { sessions, activeSessionId, updateSession, setActiveSession } = useChatStore();
         if (sessions.length === 0) {
           createSession('Chat 1');
         } else if (!activeSessionId) {
