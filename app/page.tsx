@@ -186,7 +186,12 @@ export default function Chat() {
         
         const { sessions, activeSessionId, createSession, setActiveSession } = useChatStore.getState();
         if (sessions.length === 0) {
-          createSession('Chat 1');
+          const time = new Date().toLocaleTimeString('en-US', {
+            hour: '2-digit', 
+            minute: '2-digit',
+            hour12: true
+          });
+          createSession(`Chat ${time}`);
         } else if (!activeSessionId) {
           setActiveSession(sessions[0].id);
         }
