@@ -36,7 +36,7 @@ export default function Chat() {
   }, []);
 
   const { addEvent } = useEventStore();
-  const { sessions, activeSessionId, createSession, updateSession } = useChatStore();
+  const { sessions, activeSessionId, updateSession } = useChatStore();
   const activeSession = sessions.find(s => s.id === activeSessionId);
 
   const {
@@ -184,7 +184,7 @@ export default function Chat() {
         setStreamUrl(streamUrl);
         setSandboxId(id);
         
-        const { sessions, activeSessionId, updateSession, setActiveSession } = useChatStore();
+        const { sessions, activeSessionId, createSession, setActiveSession } = useChatStore.getState();
         if (sessions.length === 0) {
           createSession('Chat 1');
         } else if (!activeSessionId) {
