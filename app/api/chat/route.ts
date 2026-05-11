@@ -19,6 +19,7 @@ export async function POST(req: Request) {
     const result = streamText({
       model: bedrock("us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
       system:
+        "Never describe your actions in text. Only use the provided tools directly without narrating what you are doing. " +
         "You are a helpful assistant with access to a computer. " +
         "Use the computer tool to help the user with their requests. " +
         "Use the bash tool to execute commands on the computer. You can create files and folders using the bash tool. Always prefer the bash tool where it is viable for the task. " +
