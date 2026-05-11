@@ -4,7 +4,6 @@ import { killDesktop } from "@/lib/sandbox/utils";
 import { bashTool, computerTool } from "@/lib/sandbox/tool";
 import { prunedMessages } from "@/lib/utils";
 
-// Allow streaming responses up to 30 seconds
 export const maxDuration = 300;
 
 const bedrock = createAmazonBedrock({
