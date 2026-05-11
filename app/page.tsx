@@ -50,7 +50,7 @@ export default function Chat() {
     setMessages,
   } = useChat({
     api: "/api/chat",
-    id: activeSessionId ?? sandboxId ?? undefined,
+    id: activeSessionId ?? undefined,
     body: { sandboxId },
     maxSteps: 30,
     onToolCall: ({ toolCall }) => {
@@ -183,8 +183,12 @@ export default function Chat() {
         const { streamUrl, id } = await getDesktopURL(sandboxId ?? undefined);
         setStreamUrl(streamUrl);
         setSandboxId(id);
+        
+        const { sessions, activeSessionId, createSession, setActiveSession } = useChatStore.getState();
         if (sessions.length === 0) {
           createSession('Chat 1');
+        } else if (!activeSessionId) {
+          setActiveSession(sessions[0].id);
         }
       } catch (err) {
         console.error("Failed to initialize desktop:", err);

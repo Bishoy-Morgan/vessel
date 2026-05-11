@@ -16,8 +16,19 @@ export const useChatStore = create<ChatStore>()(
         (set) => ({
             sessions: [],
             activeSessionId: null,
-            createSession: (name: string) => set((state) => ({ sessions: [...state.sessions, { id: crypto.randomUUID(), name, messages: [], createdAt: Date.now(), updatedAt: Date.now() }] })),
-            addMessage: (sessionId: string, message: AIMessage) => set((state) => ({ sessions: state.sessions.map((s) => s.id === sessionId ? { ...s, messages: [...s.messages, message] } : s) })),
+            createSession: (name: string) => set((state) => {
+                const newSession = {
+                  id: crypto.randomUUID(),
+                  name,
+                  messages: [],
+                  createdAt: Date.now(),
+                  updatedAt: Date.now()
+                };
+                return {
+                  sessions: [...state.sessions, newSession],
+                  activeSessionId: newSession.id
+                };
+              }),            addMessage: (sessionId: string, message: AIMessage) => set((state) => ({ sessions: state.sessions.map((s) => s.id === sessionId ? { ...s, messages: [...s.messages, message] } : s) })),
             setActiveSession: (sessionId: string) => set({ activeSessionId: sessionId }),
             deleteSession: (sessionId: string) => set((state) => ({ sessions: state.sessions.filter((s) => s.id !== sessionId) })),
             updateSession: (id: string, updates: Partial<Session>) => set((state) => ({ sessions: state.sessions.map((s) => s.id === id ? { ...s, ...updates } : s) })),
