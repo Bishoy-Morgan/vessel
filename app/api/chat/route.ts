@@ -17,7 +17,7 @@ export async function POST(req: Request) {
     await req.json();
   try {
     const result = streamText({
-      model: bedrock("us.anthropic.claude-3-5-sonnet-20241022-v2:0"),
+      model: bedrock("us.anthropic.claude-3-7-sonnet-20250219-v1:0"),
       system:
         "Never describe your actions in text. Only use the provided tools directly without narrating what you are doing. " +
         "You are a helpful assistant with access to a computer. " +
