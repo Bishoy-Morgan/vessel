@@ -49,64 +49,109 @@
 
 import { AnthropicBedrock } from '@anthropic-ai/bedrock-sdk';
 import type {
-  BetaToolComputerUse20250124,
-  BetaToolBash20250124,
   BetaContentBlockParam,
   BetaMessageParam,
+  BetaToolResultBlockParam,
 } from '@anthropic-ai/sdk/resources/beta/messages/messages';
+import { getDesktop, resolution } from '@/lib/sandbox/utils';
+import type { Message as AIMessage } from 'ai';
 
-export const runtime = 'edge';
+export const runtime = 'nodejs'; // getDesktop uses Node APIs — not Edge compatible
 export const maxDuration = 300;
 
 // ---------------------------------------------------------------------------
-// AI SDK data-stream wire format helpers
-// The useChat hook on the frontend parses lines of the form:  <code>:<json>\n
-// Codes: 0=text, 2=data, 3=error, 8=annotations, 9=tool_call, a=tool_result,
-//        e=finish_step, d=finish_message
+// AI SDK data-stream wire format
+// Codes: 0=text, 3=error, 9=tool_call, a=tool_result, e=finish_step, d=finish_message
 // ---------------------------------------------------------------------------
 function part(code: string, value: unknown): string {
   return `${code}:${JSON.stringify(value)}\n`;
 }
 
 // ---------------------------------------------------------------------------
-// AnthropicBedrock client
-// Vercel Edge Runtime can't use the default AWS credential provider chain,
-// so we supply a custom providerChainResolver that returns static creds.
+// Convert AI SDK Message[] → Anthropic BetaMessageParam[]
+//
+// AI SDK Message shape:
+//   { id, role, content: string, parts: Part[], createdAt }
+//
+// Anthropic shape:
+//   { role: 'user'|'assistant', content: string | ContentBlock[] }
+//
+// Rules:
+// - user messages → plain text content
+// - assistant messages → build content blocks from parts
+//   - text parts       → { type: 'text', text }
+//   - tool-invocation  → { type: 'tool_use', id, name, input }
+// - tool results go as a SEPARATE user turn immediately after the assistant turn
 // ---------------------------------------------------------------------------
-function makeClient(): AnthropicBedrock {
-  const accessKeyId = process.env.AWS_ACCESS_KEY_ID!;
-  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY!;
-  const region = process.env.AWS_REGION ?? 'us-east-1';
+function toAnthropicMessages(messages: AIMessage[]): BetaMessageParam[] {
+  const result: BetaMessageParam[] = [];
 
-  return new AnthropicBedrock({
-    awsAccessKey: accessKeyId,
-    awsSecretKey: secretAccessKey,
-    awsRegion: region,
-    // Edge-safe credential resolver — bypasses the Node credential chain
-    providerChainResolver: async () => async () => ({
-      accessKeyId,
-      secretAccessKey,
-    }),
-  });
+  for (const msg of messages) {
+    if (msg.role === 'user') {
+      result.push({ role: 'user', content: msg.content });
+      continue;
+    }
+
+    if (msg.role === 'assistant') {
+      const contentBlocks: BetaContentBlockParam[] = [];
+      const toolResults: BetaToolResultBlockParam[] = [];
+
+      if (!msg.parts || msg.parts.length === 0) {
+        if (msg.content) {
+          contentBlocks.push({ type: 'text', text: msg.content });
+        }
+      } else {
+        for (const p of msg.parts) {
+          if (p.type === 'text' && p.text) {
+            contentBlocks.push({ type: 'text', text: p.text });
+          } else if (p.type === 'tool-invocation') {
+            const inv = p.toolInvocation;
+            contentBlocks.push({
+              type: 'tool_use',
+              id: inv.toolCallId,
+              name: inv.toolName,
+              input: inv.args ?? {},
+            });
+            if (inv.state === 'result' && inv.result !== undefined) {
+              toolResults.push({
+                type: 'tool_result',
+                tool_use_id: inv.toolCallId,
+                content:
+                  typeof inv.result === 'string'
+                    ? inv.result
+                    : JSON.stringify(inv.result),
+              });
+            }
+          }
+        }
+      }
+
+      if (contentBlocks.length > 0) {
+        result.push({ role: 'assistant', content: contentBlocks });
+      }
+      if (toolResults.length > 0) {
+        result.push({ role: 'user', content: toolResults });
+      }
+    }
+  }
+
+  return result;
 }
 
 // ---------------------------------------------------------------------------
-// Tool definitions — Anthropic's native format for the beta API
+// AnthropicBedrock client
+// Node runtime — standard env var credential passing works fine here.
 // ---------------------------------------------------------------------------
-const COMPUTER_TOOL: BetaToolComputerUse20250124 = {
-  type: 'computer_20250124',
-  name: 'computer',
-  display_width_px: 1024,
-  display_height_px: 768,
-  display_number: 1,
-};
-
-const BASH_TOOL: BetaToolBash20250124 = {
-  type: 'bash_20250124',
-  name: 'bash',
-};
+function makeClient(): AnthropicBedrock {
+  return new AnthropicBedrock({
+    awsAccessKey: process.env.AWS_ACCESS_KEY_ID!,
+    awsSecretKey: process.env.AWS_SECRET_ACCESS_KEY!,
+    awsRegion: process.env.AWS_REGION ?? 'us-east-1',
+  });
+}
 
 const MODEL = 'us.anthropic.claude-sonnet-4-5-20250929-v1:0';
+const DISPLAY_ENV = { DISPLAY: ':99' };
 
 const SYSTEM_PROMPT = `You are a computer use assistant with access to a virtual computer.
 You can control the computer using mouse, keyboard, and bash commands.
@@ -114,197 +159,282 @@ When asked to perform tasks, use the available tools to interact with the comput
 Be precise and efficient in your actions.`;
 
 // ---------------------------------------------------------------------------
+// Key name mapping — mirrors lib/sandbox/tool.ts exactly
+// ---------------------------------------------------------------------------
+const KEY_MAP: Record<string, string> = {
+  Return: 'Return', enter: 'Return', tab: 'Tab', space: 'space',
+  backspace: 'BackSpace', delete: 'Delete', escape: 'Escape',
+  up: 'Up', down: 'Down', left: 'Left', right: 'Right',
+  home: 'Home', end: 'End', pageup: 'Prior', pagedown: 'Next',
+  f1: 'F1', f2: 'F2', f3: 'F3', f4: 'F4', f5: 'F5', f6: 'F6',
+  f7: 'F7', f8: 'F8', f9: 'F9', f10: 'F10', f11: 'F11', f12: 'F12',
+  shift: 'Shift_L', control: 'Control_L', ctrl: 'Control_L',
+  alt: 'Alt_L', super: 'Super_L', meta: 'Super_L',
+};
+
+function mapKey(key: string): string {
+  if (key.includes('+')) {
+    return key.split('+').map(p => KEY_MAP[p.toLowerCase()] || p).join('+');
+  }
+  return KEY_MAP[key.toLowerCase()] || KEY_MAP[key] || key;
+}
+
+// ---------------------------------------------------------------------------
+// Tool execution — direct sandbox calls, no HTTP round-trip
+// Returns content in the shape Anthropic's tool_result expects
+// ---------------------------------------------------------------------------
+type ToolResultContent =
+  | string
+  | Array<
+      | { type: 'text'; text: string }
+      | { type: 'image'; data: string; media_type: 'image/png' }
+    >;
+
+async function executeTool(
+  sandboxId: string,
+  toolName: string,
+  toolInput: unknown,
+): Promise<{ content: ToolResultContent; isError: boolean }> {
+  const input = toolInput as Record<string, unknown>;
+
+  try {
+    const sandbox = await getDesktop(sandboxId);
+
+    // ---- bash tool -------------------------------------------------------
+    if (toolName === 'bash') {
+      const command = input.command as string;
+      const result = await sandbox.runCommand({
+        cmd: 'bash',
+        args: ['-c', command],
+        env: DISPLAY_ENV,
+      });
+      const stdout = await result.stdout();
+      return {
+        content: stdout || '(Command executed successfully with no output)',
+        isError: false,
+      };
+    }
+
+    // ---- computer tool ---------------------------------------------------
+    if (toolName === 'computer') {
+      const action = input.action as string;
+      const coordinate = input.coordinate as [number, number] | undefined;
+      const text = input.text as string | undefined;
+      const duration = input.duration as number | undefined;
+      const scrollAmount = input.scroll_amount as number | undefined;
+      const scrollDirection = input.scroll_direction as string | undefined;
+      const startCoordinate = input.start_coordinate as [number, number] | undefined;
+
+      switch (action) {
+        case 'screenshot': {
+          await sandbox.runCommand({
+            cmd: 'import',
+            args: ['-window', 'root', '/tmp/screenshot.png'],
+            env: DISPLAY_ENV,
+          });
+          const buffer = await sandbox.readFileToBuffer({ path: '/tmp/screenshot.png' });
+          if (!buffer) throw new Error('Failed to read screenshot');
+          return {
+            content: [{ type: 'image', data: buffer.toString('base64'), media_type: 'image/png' }],
+            isError: false,
+          };
+        }
+        case 'wait': {
+          const secs = Math.min(duration ?? 1, 2);
+          await new Promise(r => setTimeout(r, secs * 1000));
+          return { content: `Waited for ${secs} seconds`, isError: false };
+        }
+        case 'left_click': {
+          const [x, y] = coordinate!;
+          await sandbox.runCommand({ cmd: 'xdotool', args: ['mousemove', '--sync', String(x), String(y), 'click', '1'], env: DISPLAY_ENV });
+          return { content: `Left clicked at ${x}, ${y}`, isError: false };
+        }
+        case 'double_click': {
+          const [x, y] = coordinate!;
+          await sandbox.runCommand({ cmd: 'xdotool', args: ['mousemove', '--sync', String(x), String(y), 'click', '--repeat', '2', '1'], env: DISPLAY_ENV });
+          return { content: `Double clicked at ${x}, ${y}`, isError: false };
+        }
+        case 'right_click': {
+          const [x, y] = coordinate!;
+          await sandbox.runCommand({ cmd: 'xdotool', args: ['mousemove', '--sync', String(x), String(y), 'click', '3'], env: DISPLAY_ENV });
+          return { content: `Right clicked at ${x}, ${y}`, isError: false };
+        }
+        case 'mouse_move': {
+          const [x, y] = coordinate!;
+          await sandbox.runCommand({ cmd: 'xdotool', args: ['mousemove', '--sync', String(x), String(y)], env: DISPLAY_ENV });
+          return { content: `Moved mouse to ${x}, ${y}`, isError: false };
+        }
+        case 'type': {
+          await sandbox.runCommand({ cmd: 'xdotool', args: ['type', '--clearmodifiers', text!], env: DISPLAY_ENV });
+          return { content: `Typed: ${text}`, isError: false };
+        }
+        case 'key': {
+          await sandbox.runCommand({ cmd: 'xdotool', args: ['key', mapKey(text!)], env: DISPLAY_ENV });
+          return { content: `Pressed key: ${text}`, isError: false };
+        }
+        case 'scroll': {
+          const button = scrollDirection === 'up' ? '4' : '5';
+          await sandbox.runCommand({ cmd: 'xdotool', args: ['click', '--repeat', String(scrollAmount), button], env: DISPLAY_ENV });
+          return { content: `Scrolled ${scrollDirection} by ${scrollAmount}`, isError: false };
+        }
+        case 'left_click_drag': {
+          const [sx, sy] = startCoordinate!;
+          const [ex, ey] = coordinate!;
+          await sandbox.runCommand({
+            cmd: 'xdotool',
+            args: ['mousemove', String(sx), String(sy), 'mousedown', '1', 'mousemove', '--sync', String(ex), String(ey), 'mouseup', '1'],
+            env: DISPLAY_ENV,
+          });
+          return { content: `Dragged from ${sx},${sy} to ${ex},${ey}`, isError: false };
+        }
+        default:
+          return { content: `Unsupported action: ${action}`, isError: true };
+      }
+    }
+
+    return { content: `Unknown tool: ${toolName}`, isError: true };
+  } catch (err) {
+    return {
+      content: err instanceof Error ? err.message : String(err),
+      isError: true,
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Route handler
 // ---------------------------------------------------------------------------
 export async function POST(req: Request) {
-  let body: { messages?: BetaMessageParam[] };
+  let body: { messages?: AIMessage[]; sandboxId?: string };
   try {
     body = await req.json();
   } catch {
-    return new Response(part('3', 'Invalid JSON body'), {
-      status: 400,
-      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-    });
+    return new Response(part('3', 'Invalid JSON body'), { status: 400 });
   }
 
-  const messages: BetaMessageParam[] = body.messages ?? [];
-  if (messages.length === 0) {
-    return new Response(part('3', 'No messages provided'), {
-      status: 400,
-      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-    });
+  const rawMessages = body.messages ?? [];
+  const sandboxId = body.sandboxId;
+
+  if (rawMessages.length === 0) {
+    return new Response(part('3', 'No messages provided'), { status: 400 });
+  }
+  if (!sandboxId) {
+    return new Response(part('3', 'No sandboxId — desktop not initialized'), { status: 400 });
   }
 
   const client = makeClient();
+  const anthropicMessages = toAnthropicMessages(rawMessages);
 
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
   const writer = writable.getWriter();
   const encoder = new TextEncoder();
-
   const write = (s: string) => writer.write(encoder.encode(s));
 
-  // Run the agentic loop in the background so we can return the stream immediately.
   (async () => {
     try {
-      // Agentic loop — keep running while the model returns tool_use stop reasons
-      const currentMessages: BetaMessageParam[] = [...messages];
+      const currentMessages: BetaMessageParam[] = [...anthropicMessages];
 
+      // Agentic loop — runs until model stops requesting tools
       while (true) {
-        // Build a fresh content accumulator for this turn
-        const pendingToolUses: Array<{
-          id: string;
-          name: string;
-          input: unknown;
-        }> = [];
-        let stopReason: string | null = null;
+        const pendingToolUses: Array<{ id: string; name: string; input: unknown }> = [];
 
-        // Use client.beta.messages.stream() so we get the high-level event helpers.
-        // The `betas` array is the computer-use feature flag.
         const stream = client.beta.messages.stream({
           model: MODEL,
           max_tokens: 4096,
           system: SYSTEM_PROMPT,
-          tools: [COMPUTER_TOOL, BASH_TOOL],
+          tools: [
+            {
+              type: 'computer_20250124',
+              name: 'computer',
+              display_width_px: resolution.x,
+              display_height_px: resolution.y,
+              display_number: 1,
+            },
+            {
+              type: 'bash_20250124',
+              name: 'bash',
+            },
+          ],
           messages: currentMessages,
           betas: ['computer-use-2025-02-05'],
         });
 
-        // ---- text deltas → AI SDK code 0 --------------------------------
+        // Stream text deltas to the frontend immediately
         stream.on('text', (delta) => {
           write(part('0', delta));
         });
 
-        // ---- inputJson deltas (tool call args streaming) -----------------
-        // We don't stream these to the frontend because we need the complete
-        // args object to emit a well-formed tool_call part (code 9).
-        // The finalMessage handler below does the full emit.
-
-        // Wait for the stream to finish and get the full message
         const message = await stream.finalMessage();
-        stopReason = message.stop_reason;
 
-        // ---- emit tool_call parts (code 9) for every tool_use block -----
+        // Collect tool_use blocks and emit them to the frontend
         for (const block of message.content) {
           if (block.type === 'tool_use') {
-            pendingToolUses.push({
-              id: block.id,
-              name: block.name,
-              input: block.input,
-            });
-            write(
-              part('9', {
-                toolCallId: block.id,
-                toolName: block.name,
-                args: block.input,
-              }),
-            );
+            pendingToolUses.push({ id: block.id, name: block.name, input: block.input });
+            write(part('9', { toolCallId: block.id, toolName: block.name, args: block.input }));
           }
         }
 
-        // Add the assistant turn to history
+        // Add assistant turn to history
         currentMessages.push({
           role: 'assistant',
           content: message.content as BetaContentBlockParam[],
         });
 
-        // If there are no tool calls, we're done
-        if (stopReason !== 'tool_use' || pendingToolUses.length === 0) {
+        // No more tool calls — we're done
+        if (message.stop_reason !== 'tool_use' || pendingToolUses.length === 0) {
           break;
         }
 
-        // ---- execute tools and collect results --------------------------
-        // For now, tool results come from the sandbox executor (sandboxToolHandler
-        // is called client-side via the /api/sandbox/* routes). The agent loop
-        // here sends tool_call parts and then expects tool_result parts back.
-        //
-        // Because this is a server-side loop without a round-trip to the client
-        // between iterations, we forward the tool_use to the Vercel sandbox
-        // executor endpoint directly from here.
-        //
-        // Each tool call is dispatched to /api/sandbox/execute and the result
-        // is fed back as both:
-        //   • an AI SDK tool_result part (code a) to the frontend stream
-        //   • a user message in currentMessages for the next model turn
-
-        const toolResults: BetaContentBlockParam[] = [];
+        // Execute each tool against the sandbox and collect results
+        const toolResults: BetaToolResultBlockParam[] = [];
 
         for (const toolUse of pendingToolUses) {
-          let result: unknown;
-          let isError = false;
+          const { content, isError } = await executeTool(sandboxId, toolUse.name, toolUse.input);
 
-          try {
-            const sandboxResp = await fetch(
-              new URL('/api/sandbox/execute', req.url).toString(),
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  tool: toolUse.name,
-                  input: toolUse.input,
-                }),
-              },
-            );
+          // Emit result to frontend (code a)
+          write(part('a', { toolCallId: toolUse.id, result: content }));
 
-            if (!sandboxResp.ok) {
-              const text = await sandboxResp.text();
-              result = `Sandbox error (${sandboxResp.status}): ${text}`;
-              isError = true;
-            } else {
-              result = await sandboxResp.json();
-            }
-          } catch (err) {
-            result = `Failed to reach sandbox: ${String(err)}`;
-            isError = true;
+          // Build result block for the next model turn
+          if (typeof content === 'string') {
+            toolResults.push({
+              type: 'tool_result',
+              tool_use_id: toolUse.id,
+              content,
+              is_error: isError,
+            });
+          } else {
+            // Image/mixed content (e.g. screenshot)
+            toolResults.push({
+              type: 'tool_result',
+              tool_use_id: toolUse.id,
+              content: content.map(c =>
+                c.type === 'image'
+                  ? {
+                      type: 'image' as const,
+                      source: {
+                        type: 'base64' as const,
+                        media_type: c.media_type,
+                        data: c.data,
+                      },
+                    }
+                  : { type: 'text' as const, text: c.text },
+              ),
+            });
           }
-
-          // Emit tool_result to frontend (code a)
-          write(
-            part('a', {
-              toolCallId: toolUse.id,
-              result,
-            }),
-          );
-
-          // Build the tool_result block for the next model turn
-          const resultContent =
-            typeof result === 'string'
-              ? result
-              : JSON.stringify(result, null, 2);
-
-          toolResults.push({
-            type: 'tool_result',
-            tool_use_id: toolUse.id,
-            content: resultContent,
-            is_error: isError,
-          } as BetaContentBlockParam);
         }
 
-        // Add tool results as a user turn for the next iteration
-        currentMessages.push({
-          role: 'user',
-          content: toolResults,
-        });
-
-        // Loop — let the model respond to the tool results
+        // Add tool results as a user turn — model will respond to them
+        currentMessages.push({ role: 'user', content: toolResults });
       }
 
-      // Signal finish to the AI SDK useChat hook
       write(part('e', { finishReason: 'stop' }));
       write(part('d', { finishReason: 'stop' }));
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error('[chat/route] stream error:', message);
-      try {
-        write(part('3', message));
-      } catch {
-        // writer may already be closed if the client disconnected
-      }
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[chat/route] error:', msg);
+      try { write(part('3', msg)); } catch { /* client disconnected */ }
     } finally {
-      try {
-        await writer.close();
-      } catch {
-        // already closed
-      }
+      try { await writer.close(); } catch { /* already closed */ }
     }
   })();
 
