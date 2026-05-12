@@ -47,14 +47,18 @@
 //   }
 // }
 
+
 import { AnthropicBedrock } from '@anthropic-ai/bedrock-sdk';
 import type {
   BetaContentBlockParam,
   BetaMessageParam,
   BetaToolResultBlockParam,
 } from '@anthropic-ai/sdk/resources/beta/messages/messages';
-import { getDesktop, resolution } from '@/lib/sandbox/utils';
+import { getDesktop } from '@/lib/sandbox/utils';
 import type { Message as AIMessage } from 'ai';
+
+// Matches the value in lib/sandbox/tool.ts — inlined to avoid importing tool.ts
+const resolution = { x: 1024, y: 768 };
 
 export const runtime = 'nodejs'; // getDesktop uses Node APIs — not Edge compatible
 export const maxDuration = 300;
