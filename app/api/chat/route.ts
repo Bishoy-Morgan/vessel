@@ -87,6 +87,36 @@ function part(code: string, value: unknown): string {
 //   - tool-invocation  → { type: 'tool_use', id, name, input }
 // - tool results go as a SEPARATE user turn immediately after the assistant turn
 // ---------------------------------------------------------------------------
+/** Map persisted AI SDK tool results → Anthropic tool_result.content (screenshots must stay images). */
+function toolInvocationResultToAnthropic(
+  raw: unknown,
+): BetaToolResultBlockParam['content'] {
+  if (typeof raw === 'string') {
+    return raw;
+  }
+  if (
+    raw &&
+    typeof raw === 'object' &&
+    'type' in raw &&
+    (raw as { type: unknown }).type === 'image' &&
+    'data' in raw &&
+    typeof (raw as { data: unknown }).data === 'string'
+  ) {
+    const img = raw as { data: string; media_type?: string };
+    return [
+      {
+        type: 'image' as const,
+        source: {
+          type: 'base64' as const,
+          media_type: img.media_type === 'image/jpeg' ? 'image/jpeg' : 'image/png',
+          data: img.data,
+        },
+      },
+    ];
+  }
+  return JSON.stringify(raw);
+}
+
 function toAnthropicMessages(messages: AIMessage[]): BetaMessageParam[] {
   const result: BetaMessageParam[] = [];
 
@@ -110,20 +140,24 @@ function toAnthropicMessages(messages: AIMessage[]): BetaMessageParam[] {
             contentBlocks.push({ type: 'text', text: p.text });
           } else if (p.type === 'tool-invocation') {
             const inv = p.toolInvocation;
+            const input =
+              inv.args !== undefined &&
+              typeof inv.args === 'object' &&
+              inv.args !== null &&
+              !Array.isArray(inv.args)
+                ? inv.args
+                : {};
             contentBlocks.push({
               type: 'tool_use',
               id: inv.toolCallId,
               name: inv.toolName,
-              input: inv.args ?? {},
+              input,
             });
             if (inv.state === 'result' && inv.result !== undefined) {
               toolResults.push({
                 type: 'tool_result',
                 tool_use_id: inv.toolCallId,
-                content:
-                  typeof inv.result === 'string'
-                    ? inv.result
-                    : JSON.stringify(inv.result),
+                content: toolInvocationResultToAnthropic(inv.result),
               });
             }
           }

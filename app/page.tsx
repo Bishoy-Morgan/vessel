@@ -52,7 +52,10 @@ export default function Chat() {
     api: "/api/chat",
     id: activeSessionId ?? undefined,
     body: { sandboxId },
-    maxSteps: 30,
+    // All tool rounds happen inside `/api/chat` (server-side loop). Setting maxSteps > 1 makes
+    // useChat POST again after each completed assistant; that second request corrupts screenshot
+    // tool results in history (they get JSON-stringified) and wastes calls.
+    maxSteps: 1,
     onToolCall: ({ toolCall }) => {
       addEvent({
         id: toolCall.toolCallId,

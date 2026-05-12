@@ -6,12 +6,33 @@ import { resolution } from "./tool";
 const NOVNC_PORT = 6080;
 const DISPLAY_ENV = { DISPLAY: ":99" };
 
-export const getDesktop = async (id?: string) => {
+export type GetDesktopOptions = {
+  /**
+   * When false (default): if `id` is set but missing or not running, throw — chat must use the same
+   * VM the user sees in VNC, never a silently-created second sandbox.
+   * When true: fall through and provision a fresh desktop (used by getDesktopURL on first paint / New desktop).
+   */
+  allowRecreate?: boolean;
+};
+
+export const getDesktop = async (id?: string, opts?: GetDesktopOptions) => {
+  const allowRecreate = opts?.allowRecreate ?? false;
+
   try {
     if (id) {
-      const sandbox = await Sandbox.get({ sandboxId: id });
-      if (sandbox.status === "running") {
+      let sandbox: Sandbox | undefined;
+      try {
+        sandbox = await Sandbox.get({ sandboxId: id });
+      } catch {
+        sandbox = undefined;
+      }
+      if (sandbox?.status === "running") {
         return sandbox;
+      }
+      if (!allowRecreate) {
+        throw new Error(
+          `Desktop is not running or could not be found. Click "New desktop" to reconnect, then retry your chat.`,
+        );
       }
     }
 
@@ -97,7 +118,7 @@ async function waitForNoVNC(sandbox: Sandbox, maxRetries = 20) {
 
 export const getDesktopURL = async (id?: string) => {
   try {
-    const sandbox = await getDesktop(id);
+    const sandbox = await getDesktop(id, { allowRecreate: true });
     const baseUrl = sandbox.domain(NOVNC_PORT);
     const streamUrl = `${baseUrl}/vnc.html?autoconnect=true&resize=scale&reconnect=true`;
 
