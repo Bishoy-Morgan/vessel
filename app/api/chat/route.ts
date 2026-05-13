@@ -1,12 +1,12 @@
-import { createBedrockAnthropic } from "@ai-sdk/amazon-bedrock/anthropic";
+import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
 import { streamText, UIMessage } from "ai";
 import { killDesktop } from "@/lib/sandbox/utils";
-import { computerExecute, bashExecute } from "@/lib/sandbox/tool";
+import { bashTool, computerTool } from "@/lib/sandbox/tool";
 import { prunedMessages } from "@/lib/utils";
 
 export const maxDuration = 300;
 
-const bedrockAnthropic = createBedrockAnthropic({
+const bedrock = createAmazonBedrock({
   region: "us-east-1",
   accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
@@ -18,7 +18,14 @@ export async function POST(req: Request) {
 
   try {
     const result = streamText({
-      model: bedrockAnthropic("us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
+      model: bedrock("us.anthropic.claude-sonnet-4-5-20250929-v1:0", {
+        // Pass the computer-use beta flag through Bedrock's additionalModelRequestFields.
+        // Without this, Bedrock strips the anthropic_beta header and the model
+        // narrates instead of executing tool calls.
+        additionalModelRequestFields: {
+          anthropic_beta: ["computer-use-2025-02-05"],
+        },
+      }),
       system:
         "Never describe your actions in text. Only use the provided tools directly without narrating what you are doing. " +
         "You are a helpful assistant with access to a computer. " +
@@ -28,27 +35,8 @@ export async function POST(req: Request) {
         "If the browser opens with a setup wizard, YOU MUST IGNORE IT and move straight to the next step (e.g. input the url in the search bar).",
       messages: prunedMessages(messages),
       tools: {
-        computer: bedrockAnthropic.tools.computer_20250124({
-          displayWidthPx: 1024,
-          displayHeightPx: 768,
-          displayNumber: 1,
-          execute: computerExecute(sandboxId),
-          experimental_toToolResultContent(result) {
-            if (typeof result === "string") {
-              return [{ type: "text", text: result }];
-            }
-            if (result.type === "image" && result.data) {
-              return [{ type: "image", data: result.data, mimeType: "image/png" }];
-            }
-            if (result.type === "text" && result.text) {
-              return [{ type: "text", text: result.text }];
-            }
-            throw new Error("Invalid computer tool result format");
-          },
-        }),
-        bash: bedrockAnthropic.tools.bash_20250124({
-          execute: bashExecute(sandboxId),
-        }),
+        computer: computerTool(sandboxId),
+        bash: bashTool(sandboxId),
       },
       maxSteps: 30,
     });
