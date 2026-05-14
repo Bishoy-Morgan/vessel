@@ -16,7 +16,8 @@ const client = new AnthropicBedrock({
 });
 
 // const MODEL = "us.anthropic.claude-sonnet-4-5-20250929-v1:0";
-const MODEL = "us.anthropic.claude-3-7-sonnet-20250219-v1:0";
+// const MODEL = "us.anthropic.claude-3-7-sonnet-20250219-v1:0";
+const MODEL = "us.anthropic.claude-3-5-sonnet-20241022-v2:0";
 
 const SYSTEM_PROMPT =
   "Never describe your actions in text. Only use the provided tools directly without narrating what you are doing. " +
