@@ -1,5 +1,4 @@
 import { AnthropicBedrock } from "@anthropic-ai/bedrock-sdk";
-import { getDesktop } from "@/lib/sandbox/utils";
 import { computerExecute, bashExecute, resolution } from "@/lib/sandbox/tool";
 import type { UIMessage } from "ai";
 

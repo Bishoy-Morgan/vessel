@@ -21,6 +21,7 @@ import {
   ScrollText,
   StopCircle,
 } from "lucide-react";
+import Image from "next/image";
 
 const PurePreviewMessage = ({
   message,
@@ -198,15 +199,15 @@ const PurePreviewMessage = ({
                         {state === "result" ? (
                           part.toolInvocation.result.type === "image" && (
                             <div className="p-1">
-                              <img
+                              <Image
                                 src={`data:image/png;base64,${part.toolInvocation.result.data}`}
                                 alt="Screenshot"
-                                className="w-full aspect-[1024/768] rounded-sm border border-[#1a1a1a]"
+                                className="w-full aspect-1024/768 rounded-sm border border-[#1a1a1a]"
                               />
                             </div>
                           )
                         ) : action === "screenshot" ? (
-                          <div className="w-full aspect-[1024/768] rounded-sm bg-[#111111] animate-pulse border border-[#1a1a1a]"></div>
+                          <div className="w-full aspect-1024/768 rounded-sm bg-[#111111] animate-pulse border border-[#1a1a1a]"></div>
                         ) : null}
                       </motion.div>
                     );
