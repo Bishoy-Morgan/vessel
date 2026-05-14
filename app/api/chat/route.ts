@@ -19,12 +19,8 @@ export async function POST(req: Request) {
   try {
     const result = streamText({
       model: bedrock("us.anthropic.claude-sonnet-4-5-20250929-v1:0", {
-        // Pass the computer-use beta flag through Bedrock's additionalModelRequestFields.
         // Without this, Bedrock strips the anthropic_beta header and the model
         // narrates instead of executing tool calls.
-        additionalModelRequestFields: {
-          anthropic_beta: ["computer-use-2025-02-05"],
-        },
       }),
       system:
         "Never describe your actions in text. Only use the provided tools directly without narrating what you are doing. " +
