@@ -15,7 +15,8 @@ const client = new AnthropicBedrock({
   awsRegion: process.env.AWS_REGION ?? "us-east-1",
 });
 
-const MODEL = "us.anthropic.claude-sonnet-4-5-20250929-v1:0";
+// const MODEL = "us.anthropic.claude-sonnet-4-5-20250929-v1:0";
+const MODEL = "us.anthropic.claude-3-7-sonnet-20250219-v1:0";
 
 const SYSTEM_PROMPT =
   "Never describe your actions in text. Only use the provided tools directly without narrating what you are doing. " +
@@ -179,21 +180,21 @@ export async function POST(req: Request) {
           system: SYSTEM_PROMPT,
           tools: [
             {
-              type: "computer_20250124",
+              type: "computer_20241022",
               name: "computer",
               display_width_px: resolution.x,
               display_height_px: resolution.y,
               display_number: 1,
             },
             {
-              type: "bash_20250124",
+              type: "bash_20241022",
               name: "bash",
             },
           ],
           messages: currentMessages as Parameters<
             typeof client.beta.messages.stream
           >[0]["messages"],
-          betas: ["computer-use-2025-02-05"],
+          betas: ["computer-use-2024-10-22"],
         });
 
         // Stream text deltas to frontend
