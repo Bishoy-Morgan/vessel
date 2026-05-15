@@ -1,21 +1,45 @@
 'use client'
 
 import { useState } from 'react'
-import { useEventStore } from '@/src/store/eventStore'
 import { ChevronUp, ChevronDown, Trash2 } from 'lucide-react'
+import { useEventStore } from '@/src/store/eventStore'
+import type { AgentEvent } from '@/src/types/index'
 
-export default function DebugPanel() {
+// Types
+interface DebugPanelProps {
+  onSelectEvent?: (event: AgentEvent) => void
+}
+
+// Helpers
+const STATUS_COLOR: Record<string, string> = {
+  idle:    'text-[#71717a]',
+  running: 'text-[#2563eb]',
+  error:   'text-red-400',
+}
+
+const EVENT_STATUS_COLOR: Record<string, string> = {
+  running: 'text-[#2563eb]',
+  success: 'text-emerald-500',
+  error:   'text-red-400',
+}
+
+// Component
+export default function DebugPanel({ onSelectEvent }: DebugPanelProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+
   const { events, countsByType, agentStatus, clearEvents } = useEventStore()
 
-  const statusColor = {
-    idle: 'text-[#71717a]',
-    running: 'text-[#2563eb]',
-    error: 'text-red-400',
-  }[agentStatus]
+  const statusColor = STATUS_COLOR[agentStatus] ?? 'text-[#71717a]'
+
+  const handleSelectEvent = (event: AgentEvent) => {
+    setSelectedId(event.id)
+    onSelectEvent?.(event)
+  }
 
   return (
     <div className="border-t border-[#1a1a1a] bg-[#0a0a0a] shrink-0">
+
       {/* Toggle header */}
       <button
         onClick={() => setIsOpen(!isOpen)}
@@ -24,15 +48,15 @@ export default function DebugPanel() {
         <div className="flex items-center gap-2">
           <span className="text-xs font-mono text-[#71717a] uppercase tracking-wider">Debug</span>
           <span className={`text-xs font-mono ${statusColor}`}>● {agentStatus}</span>
-          <span className="text-xs text-[#71717a]">
-            {events.length} events
-          </span>
+          <span className="text-xs text-[#71717a]">{events.length} events</span>
         </div>
+
         <div className="flex items-center gap-2">
           {events.length > 0 && (
             <button
               onClick={(e) => { e.stopPropagation(); clearEvents(); }}
               className="text-[#71717a] hover:text-red-400 transition-colors"
+              title="Clear events"
             >
               <Trash2 className="w-3 h-3" />
             </button>
@@ -47,7 +71,8 @@ export default function DebugPanel() {
       {/* Panel content */}
       {isOpen && (
         <div className="max-h-48 overflow-y-auto px-4 py-2 space-y-2">
-          {/* Counts */}
+
+          {/* Type counts */}
           <div className="flex gap-3 text-xs font-mono pb-2 border-b border-[#1a1a1a]">
             {Object.entries(countsByType).map(([type, count]) => (
               <span key={type} className="text-[#71717a]">
@@ -63,14 +88,14 @@ export default function DebugPanel() {
             events.map((event) => (
               <div
                 key={event.id}
-                className="flex items-center gap-3 text-xs font-mono py-1 border-b border-[#1a1a1a]/50"
+                onClick={() => handleSelectEvent(event)}
+                className={`flex items-center gap-3 text-xs font-mono py-1 border-b border-[#1a1a1a]/50 cursor-pointer rounded px-1 transition-colors ${
+                  selectedId === event.id
+                    ? 'bg-[#2563eb]/10 border-[#2563eb]/20'
+                    : 'hover:bg-[#111111]'
+                }`}
               >
-                <span className={`shrink-0 ${
-                  event.status === 'running' ? 'text-[#2563eb]' :
-                  event.status === 'success' ? 'text-emerald-500' :
-                  event.status === 'error' ? 'text-red-400' :
-                  'text-[#71717a]'
-                }`}>●</span>
+                <span className={`shrink-0 ${EVENT_STATUS_COLOR[event.status] ?? 'text-[#71717a]'}`}>●</span>
                 <span className="text-white shrink-0">{event.type}</span>
                 <span className="text-[#71717a] shrink-0">{event.status}</span>
                 {event.duration && (

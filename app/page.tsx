@@ -22,7 +22,7 @@ import DebugPanel from "@/components/DebugPanel";
 import ToolCallDetails from "@/components/ToolCallDetails";
 import { useEventStore } from "@/src/store/eventStore";
 import { useChatStore } from "@/src/store/chatStore";
-import { ToolCall } from "@/src/types";
+import { ComputerToolCall, ToolCall } from "@/src/types";
 
 export default function Chat() {
   const [desktopContainerRef, desktopEndRef] = useScrollToBottom();
@@ -277,8 +277,21 @@ export default function Chat() {
               </form>
             </div>
 
-            {/* Debug Panel */}
-            <DebugPanel />
+            <DebugPanel onSelectEvent={(event) => {
+              if (event.type === 'computer') {
+                setSelectedToolCall({
+                  type: 'computer',
+                  action: (event.payload.action as ComputerToolCall['action']) ?? 'screenshot',
+                  coordinate: event.payload.coordinate as [number, number] | undefined,
+                  text: event.payload.text as string | undefined,
+                })
+              } else if (event.type === 'bash') {
+                setSelectedToolCall({
+                  type: 'bash',
+                  command: (event.payload.command as string) ?? '',
+                })
+              }
+            }} />
 
           </ResizablePanel>
 
