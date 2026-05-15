@@ -1,128 +1,113 @@
-# Author: Bishoy Morgan
+# Energent — AI Agent Dashboard
 
-# Energent AI — Agent Dashboard
+A full-stack AI agent that controls a real computer through natural language. Built with Next.js 15, it runs an agentic loop server-side, executes mouse clicks, keyboard input, and bash commands on a live virtual desktop, and streams every action back to the browser in real time.
 
-A production-quality AI agent dashboard built on top of the [Vercel AI SDK Computer Use](https://github.com/vercel-labs/ai-sdk-computer-use) demo, extended with a full event pipeline, multi-session chat history, and a two-panel resizable interface.
-
-## Live Demo
-> Deployed at: https://ai-agent-dashboard-nu.vercel.app/
+**Live demo:** https://ai-agent-dashboard-nu.vercel.app
 
 ---
 
-## Architecture Overview
-
-### Two-Panel Layout
-- **Left panel**: Chat interface with inline tool call visualizations, session sidebar, and collapsible debug panel
-- **Right panel**: VNC viewer (isolated with `React.memo`) + expanded tool call details
-- Horizontally resizable via `react-resizable-panels`
-
-### State Management
-Two separate Zustand stores to prevent VNC re-renders on chat updates:
-
-- `useEventStore` — captures all tool calls with `id`, `timestamp`, `type`, `payload`, `status`, and `duration`. Derives `countsByType` and `agentStatus`.
-- `useChatStore` — manages sessions with `create`, `switch`, and `delete`. Persisted to `localStorage` via Zustand `persist` middleware.
-
-### VNC Isolation
-`VNCViewer` is wrapped in `React.memo` with an explicit comparator:
-
-```tsx
-React.memo(Component, (prev, next) =>
-  prev.streamUrl === next.streamUrl &&
-  prev.isInitializing === next.isInitializing
-)
-```
-
-This ensures chat updates never trigger a VNC re-render.
-
-### Event Pipeline
-Every tool call is captured in `onToolCall` inside `useChat` and pushed to the event store:
-
-```ts
-onToolCall: ({ toolCall }) => {
-  addEvent({
-    id: toolCall.toolCallId,
-    timestamp: Date.now(),
-    type: toolCall.toolName as ActionType,
-    payload: toolCall.args as Record<string, unknown>,
-    status: 'running',
-  })
-}
-```
-
-### TypeScript
-- No `any` types
-- Discriminated unions for `ToolCall` (`computer` | `bash`)
-- Resolved Message vs UIMessage type conflict — UIMessage extends Message, sessions store Message[] to satisfy both setMessages and updateSession without casting
+![Demo](./public/demo.mp4)
 
 ---
 
-## Tech Stack
-- **Framework**: Next.js 15 (App Router)
-- **AI**: Anthropic Claude via AI SDK (`claude-sonnet-4-5`)
-- **State**: Zustand with persist middleware
-- **UI**: Tailwind CSS, shadcn/ui, Framer Motion
-- **Sandbox**: Vercel Sandboxes (VNC via noVNC)
-- **Language**: TypeScript (strict mode)
+## What it does
+
+You type a natural language instruction. The agent takes a screenshot, reasons about what it sees, and operates the computer — clicking, typing, scrolling, running terminal commands — until the task is complete. Every step is visible in the chat as it happens, and the VNC panel shows the live desktop state.
 
 ---
 
-## Project Structure
+## Architecture
+
+### The core engineering problem
+
+AWS Bedrock exposes Claude through two APIs: the **Converse API** (used by `@ai-sdk/amazon-bedrock`) and the **InvokeModel API** (used by `@anthropic-ai/bedrock-sdk`). Computer use requires Anthropic's `computer-use-2025-01-24` beta header. The Converse API strips unknown headers — so the model receives the tool definitions but never gets permission to invoke them. It narrates instead of acting.
+
+The fix is to bypass the AI SDK's Bedrock provider entirely and use `@anthropic-ai/bedrock-sdk` directly. This routes through AWS credentials but uses the native Anthropic wire format, which preserves beta headers end-to-end.
+
+### Agentic loop
+
+The entire tool execution loop runs server-side inside a single `POST /api/chat` request:
 
 ```
-src/
-  types/          # All domain types — ActionType, AgentEvent, ToolCall, Session
-  store/
-    eventStore.ts # Event pipeline with derived state
-    chatStore.ts  # Session management with localStorage persistence
-components/
-  VNCViewer.tsx             # Isolated, memo'd VNC component
-  SessionSidebar.tsx        # Collapsible session management
-  DebugPanel.tsx            # Collapsible event store visualizer
-  ToolCallDetails.tsx       # Expanded tool call view (right panel)
-app/
-  page.tsx        # Main dashboard layout
-  api/chat/       # Anthropic computer use stream endpoint
+User message
+    ↓
+toAnthropicMessages()     ← converts AI SDK UIMessage[] to Anthropic format
+    ↓
+client.beta.messages.stream()   ← Bedrock InvokeModel with computer-use beta
+    ↓
+model returns tool_use block
+    ↓
+computerExecute() / bashExecute()   ← runs against Vercel Sandbox
+    ↓
+tool_result fed back to model
+    ↓
+loop until stop_reason !== "tool_use"
+    ↓
+stream response to useChat via AI SDK data stream format
 ```
 
----
+This design means `useChat` on the frontend stays unchanged — it sees a standard AI SDK data stream and doesn't need to know about the agentic loop running inside the request.
 
-## Running Locally
+### Message history conversion
 
-```bash
-# Install dependencies
-pnpm install
+AI SDK stores conversation history as `UIMessage[]` with `parts` arrays containing `tool-invocation` objects. Anthropic expects strictly alternating `user`/`assistant` turns where every `tool_use` block in an assistant turn is immediately followed by a `tool_result` in a user turn.
 
-# Set up environment variables
-cp .env.example .env.local
-# Add: ANTHROPIC_API_KEY, SANDBOX_SNAPSHOT_ID
+`toAnthropicMessages()` handles this conversion, including edge cases:
+- Incomplete tool invocations (state !== "result") — entire assistant turn is dropped to avoid orphaned `tool_use` blocks
+- Screenshot results — converted from `{ type: "image", data: base64 }` to Anthropic's `image_source` format
+- Multi-step turns — text blocks and tool_use blocks merged into a single assistant content array
 
-# Set up Vercel credentials
-vercel link
-vercel env pull
+### Virtual desktop
 
-# Create sandbox snapshot (one time, ~10 min)
-npx tsx lib/sandbox/create-snapshot.ts
-
-# Run dev server
-pnpm dev
-```
+Each session gets a Vercel Sandbox running a full Linux desktop (Xfce + Chrome) accessible via noVNC. The sandbox is created on first load, kept alive for the session duration, and killed on tab close via `navigator.sendBeacon`.
 
 ---
 
-## What I Would Add With More Time
-- End-to-end tests for the event pipeline
-- Agent status persistence across sessions
-- Mobile-responsive layout improvements
-- Optimistic UI updates when switching sessions
+## Stack
 
----
-
-## Key Technical Decisions
-
-| Decision | Reason |
+| Layer | Technology |
 |---|---|
-| Two Zustand stores | Isolate chat state from VNC to prevent re-renders |
-| `React.memo` with explicit comparator | Guarantee VNC stability regardless of chat updates |
-| `Message[]` in session store | `UIMessage` extends `Message` — storing `Message[]` satisfies both `setMessages` and `updateSession` without casting |
-| Zustand `persist` | Zero-config localStorage sync for sessions |
-| Discriminated unions for ToolCall | TypeScript narrows correctly in switch statements |
+| Framework | Next.js 15 (App Router) |
+| AI | Claude Sonnet 4.5 via AWS Bedrock |
+| AI SDK | `@anthropic-ai/bedrock-sdk` + `ai` (Vercel AI SDK) |
+| Virtual desktop | Vercel Sandboxes + noVNC |
+| State | Zustand (sessions + events) |
+| UI | Tailwind CSS + shadcn/ui |
+| Deployment | Vercel |
+
+---
+
+## Key design decisions
+
+**Why `@anthropic-ai/bedrock-sdk` instead of `@ai-sdk/amazon-bedrock`**
+The AI SDK's Bedrock provider uses the Converse API which doesn't support computer use beta headers. The native Bedrock SDK uses InvokeModel which does. This was the root cause of the model narrating actions as text instead of executing them.
+
+**Why the agentic loop runs server-side**
+Running tool execution client-side would require round-trips between the browser and the sandbox for every tool call, and would expose sandbox credentials to the client. The server-side loop keeps credentials secure and reduces latency.
+
+**Why `maxSteps: 1` in `useChat`**
+With `maxSteps > 1`, `useChat` would POST again after each completed assistant turn, sending the full message history back through `toAnthropicMessages()`. Screenshot results stored in `UIMessage` parts lose their image format during JSON serialization and come back as plain strings — breaking the model's ability to see. Setting `maxSteps: 1` keeps the multi-step loop entirely inside the single server request where image data stays intact.
+
+---
+
+## Session management
+
+- Sessions persist to `localStorage` via Zustand `persist` middleware
+- Session names are set from the first user message after the response completes
+- Two-step delete confirmation prevents accidental session loss
+- Debug panel shows per-session tool call events, cleared on session switch
+- Switching sessions restores the full message history
+
+---
+
+## Environment variables
+
+```env
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+AWS_REGION=us-east-1
+SANDBOX_SNAPSHOT_ID=
+VERCEL_OIDC_TOKEN=
+```
+
+The AWS credentials need `bedrock:InvokeModel` permission on `us.anthropic.claude-sonnet-4-5-20250929-v1:0` in `us-east-1`. No Anthropic API key is required — all inference goes through AWS.
