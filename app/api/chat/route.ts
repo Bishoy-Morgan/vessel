@@ -22,14 +22,16 @@ const SYSTEM_PROMPT =
   "You are a helpful assistant with access to a computer. " +
   "Use the computer tool to help the user with their requests. " +
   "Use the bash tool to execute commands on the computer. You can create files and folders using the bash tool. Always prefer the bash tool where it is viable for the task. " +
+  "When navigating to a URL in the browser, ALWAYS click the address bar, press ctrl+a to select all existing text, then type the URL. Never type directly without clearing first. " +
   "Be sure to advise the user when waiting is necessary. " +
   "If the browser opens with a setup wizard, YOU MUST IGNORE IT and move straight to the next step (e.g. input the url in the search bar).";
 
-// ---------------------------------------------------------------------------
-// AI SDK data stream format — useChat expects these prefixed lines
-// 0=text delta, 2=data, 8=annotation, 9=tool_call, a=tool_result,
-// e=finish_step, d=finish_message, 3=error
-// ---------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // AI SDK data stream format — useChat expects these prefixed lines
+  // 0=text delta, 2=data, 8=annotation, 9=tool_call, a=tool_result,
+  // e=finish_step, d=finish_message, 3=error
+  // ---------------------------------------------------------------------------
+
 function part(code: string, value: unknown): string {
   return `${code}:${JSON.stringify(value)}\n`;
 }

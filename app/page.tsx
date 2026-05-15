@@ -88,9 +88,10 @@ export default function Chat() {
         const firstUserMsg = currentMessages.find(m => m.role === 'user');
     
         if (session && isFirstExchange && firstUserMsg?.content) {
-          const name = typeof firstUserMsg.content === 'string'
+          const raw = typeof firstUserMsg.content === 'string'
             ? firstUserMsg.content.slice(0, 40)
             : 'New Chat';
+          const name = raw.charAt(0).toUpperCase() + raw.slice(1);
           updateSession(activeSessionId, { name, messages: currentMessages, updatedAt: Date.now() });
         } else {
           updateSession(activeSessionId, { messages: currentMessages, updatedAt: Date.now() });
