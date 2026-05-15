@@ -72,46 +72,48 @@ function toAnthropicMessages(messages: UIMessage[]): AnthropicMessage[] {
             contentBlocks.push({ type: "text", text: p.text });
           } else if (p.type === "tool-invocation") {
             const inv = p.toolInvocation;
+
+            // Only include tool_use blocks that have a completed result.
+            // Incomplete tool calls (state !== "result") cause Anthropic to
+            // reject the message with "tool_use without tool_result" error.
+            if (inv.state !== "result") continue;
+
             contentBlocks.push({
               type: "tool_use",
               id: inv.toolCallId,
               name: inv.toolName,
               input: inv.args ?? {},
             });
-            if (inv.state === "result" && inv.result !== undefined) {
-              const raw = inv.result;
-              // Screenshots come back as { type: "image", data: base64 }
-              // Everything else is text
-              let content:
-                | string
-                | Array<{ type: string; [key: string]: unknown }>;
-              if (
-                raw &&
-                typeof raw === "object" &&
-                "type" in raw &&
-                raw.type === "image" &&
-                "data" in raw
-              ) {
-                content = [
-                  {
-                    type: "image",
-                    source: {
-                      type: "base64",
-                      media_type: "image/png",
-                      data: (raw as { data: string }).data,
-                    },
+
+            const raw = inv.result;
+            let content: string | Array<{ type: string; [key: string]: unknown }>;
+
+            if (
+              raw &&
+              typeof raw === "object" &&
+              "type" in raw &&
+              raw.type === "image" &&
+              "data" in raw
+            ) {
+              content = [
+                {
+                  type: "image",
+                  source: {
+                    type: "base64",
+                    media_type: "image/png",
+                    data: (raw as { data: string }).data,
                   },
-                ];
-              } else {
-                content =
-                  typeof raw === "string" ? raw : JSON.stringify(raw);
-              }
-              toolResults.push({
-                type: "tool_result",
-                tool_use_id: inv.toolCallId,
-                content,
-              });
+                },
+              ];
+            } else {
+              content = typeof raw === "string" ? raw : JSON.stringify(raw);
             }
+
+            toolResults.push({
+              type: "tool_result",
+              tool_use_id: inv.toolCallId,
+              content,
+            });
           }
         }
       }
