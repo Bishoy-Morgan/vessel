@@ -4,8 +4,8 @@ import { useState } from 'react'
 import { useChatStore } from '@/src/store/chatStore'
 import { ChevronLeft, ChevronRight, MessageSquare, Plus, Pencil, Check, X, Trash2 } from 'lucide-react'
 import Image from 'next/image'
-import logo from '@/public/logo.png'
-import robot from '@/public/energent.png'
+import energentLogo from '@/public/images/energentLogo.png'
+import energentSymbol from '@/public/images/energentSymbol.png'
 
 export default function SessionSidebar() {
   const { sessions, activeSessionId, createSession, deleteSession, setActiveSession, updateSession } = useChatStore()
@@ -66,14 +66,14 @@ export default function SessionSidebar() {
       <div className={`relative z-10 p-3 flex items-center`}>
         {collapsed ? (
           <Image 
-            src={robot}
-            alt='Energent Logo'
+            src={energentSymbol}
+            alt='Energent Symbol'
             width={36}
             height={36}
           />
         ) : (
           <Image 
-            src={logo}
+            src={energentLogo}
             alt='Energent Logo'
             width={180}
             height={36}
@@ -86,7 +86,7 @@ export default function SessionSidebar() {
         <button
           type="button"
           onClick={handleNewSession}
-          className="flex size-8 shrink-0 items-center justify-center rounded-full border border-[#2563eb]/40 bg-black text-[#93c5fd] hover:bg-[#2563eb]/15"
+          className="flex size-8 cursor-pointer shrink-0 items-center justify-center rounded-full border border-[#2563eb]/40 bg-black text-[#93c5fd] hover:bg-[#2563eb]/15"
           title="New Session"
         >
           <Plus className="size-5" strokeWidth={2} aria-hidden />
