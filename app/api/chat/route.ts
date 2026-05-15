@@ -4,11 +4,11 @@ import type { UIMessage } from "ai";
 
 export const maxDuration = 300;
 
-// ---------------------------------------------------------------------------
+
 // AnthropicBedrock client — uses AWS credentials, NOT Anthropic API credits
 // Routes through AWS Bedrock but uses native Anthropic API format,
 // which supports computer use beta headers unlike the Converse API
-// ---------------------------------------------------------------------------
+
 const client = new AnthropicBedrock({
   awsAccessKey: process.env.AWS_ACCESS_KEY_ID!,
   awsSecretKey: process.env.AWS_SECRET_ACCESS_KEY!,
@@ -26,21 +26,21 @@ const SYSTEM_PROMPT =
   "Be sure to advise the user when waiting is necessary. " +
   "If the browser opens with a setup wizard, YOU MUST IGNORE IT and move straight to the next step (e.g. input the url in the search bar).";
 
-  // ---------------------------------------------------------------------------
+  
   // AI SDK data stream format — useChat expects these prefixed lines
   // 0=text delta, 2=data, 8=annotation, 9=tool_call, a=tool_result,
   // e=finish_step, d=finish_message, 3=error
-  // ---------------------------------------------------------------------------
+  
 
 function part(code: string, value: unknown): string {
   return `${code}:${JSON.stringify(value)}\n`;
 }
 
-// ---------------------------------------------------------------------------
+
 // Convert AI SDK UIMessage[] → Anthropic MessageParam[]
 // UIMessage has parts[] with tool-invocation entries
 // Anthropic wants alternating user/assistant turns with content blocks
-// ---------------------------------------------------------------------------
+
 type AnthropicMessage = {
   role: "user" | "assistant";
   content:
@@ -61,26 +61,29 @@ function toAnthropicMessages(messages: UIMessage[]): AnthropicMessage[] {
     }
 
     if (msg.role === "assistant") {
-      const contentBlocks: Array<{ type: string; [key: string]: unknown }> = [];
+      const textBlocks: Array<{ type: string; [key: string]: unknown }> = [];
+      const toolUseBlocks: Array<{ type: string; [key: string]: unknown }> = [];
       const toolResults: Array<{ type: string; [key: string]: unknown }> = [];
 
       if (!msg.parts || msg.parts.length === 0) {
         if (msg.content) {
-          contentBlocks.push({ type: "text", text: msg.content });
+          textBlocks.push({ type: "text", text: msg.content });
         }
       } else {
         for (const p of msg.parts) {
           if (p.type === "text" && p.text) {
-            contentBlocks.push({ type: "text", text: p.text });
+            textBlocks.push({ type: "text", text: p.text });
           } else if (p.type === "tool-invocation") {
             const inv = p.toolInvocation;
 
-            // Only include tool_use blocks that have a completed result.
-            // Incomplete tool calls (state !== "result") cause Anthropic to
-            // reject the message with "tool_use without tool_result" error.
-            if (inv.state !== "result") continue;
+            // Skip entire message if any tool call is incomplete
+            if (inv.state !== "result") {
+              toolUseBlocks.length = 0;
+              toolResults.length = 0;
+              break;
+            }
 
-            contentBlocks.push({
+            toolUseBlocks.push({
               type: "tool_use",
               id: inv.toolCallId,
               name: inv.toolName,
@@ -120,9 +123,21 @@ function toAnthropicMessages(messages: UIMessage[]): AnthropicMessage[] {
         }
       }
 
+      // If parts had tool invocations but none completed (all skipped),
+      // drop the entire assistant turn to avoid orphaned tool_use blocks
+      const hadToolInvocations = msg.parts?.some(p => p.type === 'tool-invocation');
+      const hasCompletedTools = toolUseBlocks.length > 0;
+
+      if (hadToolInvocations && !hasCompletedTools) {
+        // Drop this turn entirely — incomplete tool calls corrupt history
+        continue;
+      }
+
+      const contentBlocks = [...textBlocks, ...toolUseBlocks];
       if (contentBlocks.length > 0) {
         result.push({ role: "assistant", content: contentBlocks });
       }
+
       if (toolResults.length > 0) {
         result.push({ role: "user", content: toolResults });
       }
@@ -132,9 +147,8 @@ function toAnthropicMessages(messages: UIMessage[]): AnthropicMessage[] {
   return result;
 }
 
-// ---------------------------------------------------------------------------
 // Route handler
-// ---------------------------------------------------------------------------
+
 export async function POST(req: Request) {
   let body: { messages?: UIMessage[]; sandboxId?: string };
   try {
