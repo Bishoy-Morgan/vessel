@@ -193,7 +193,7 @@ export async function POST(req: Request) {
           messages: currentMessages as Parameters<
             typeof client.beta.messages.stream
           >[0]["messages"],
-          betas: ["computer-use-2025-02-05"],
+          betas: ["computer-use-2025-01-24"],
         });
 
         // Stream text deltas to frontend
