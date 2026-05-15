@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useChatStore } from '@/src/store/chatStore'
-import { ChevronLeft, ChevronRight, MessageSquare, Plus, Pencil, Check, Delete } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MessageSquare, Plus, Pencil, Check, X, Trash2 } from 'lucide-react'
 
 export default function SessionSidebar() {
   const { sessions, activeSessionId, createSession, deleteSession, setActiveSession, updateSession } = useChatStore()
@@ -113,7 +113,7 @@ export default function SessionSidebar() {
                   <button
                     type="button"
                     onClick={(e) => confirmRename(e, session.id)}
-                    className="p-1 text-[#2563eb] hover:text-white"
+                    className="p-1 text-[#2563eb] hover:text-white cursor-pointer"
                     title="Save"
                   >
                     <Check className="size-4" strokeWidth={2} />
@@ -122,7 +122,7 @@ export default function SessionSidebar() {
                   <button
                     type="button"
                     onClick={(e) => startRename(e, session.id, session.name)}
-                    className="p-1 text-[#71717a] opacity-0 hover:text-white group-hover:opacity-100"
+                    className="p-1 text-[#71717a] opacity-0 hover:text-white group-hover:opacity-100 cursor-pointer"
                     title="Rename"
                   >
                     <Pencil className="size-4" strokeWidth={2} />
@@ -137,7 +137,7 @@ export default function SessionSidebar() {
                         deleteSession(session.id)
                         setConfirmDeleteId(null)
                       }}
-                      className="p-1 text-red-400 hover:text-red-300"
+                      className="p-1 text-red-400 hover:text-red-300 cursor-pointer"
                       title="Confirm delete"
                     >
                       <Check className="size-4" strokeWidth={2} />
@@ -148,10 +148,10 @@ export default function SessionSidebar() {
                         e.stopPropagation()
                         setConfirmDeleteId(null)
                       }}
-                      className="p-1 text-[#71717a] hover:text-white"
+                      className="p-1 text-[#71717a] hover:text-white cursor-pointer"
                       title="Cancel"
                     >
-                      <Delete className="size-4" strokeWidth={2} />
+                      <X className="size-4" strokeWidth={2} />
                     </button>
                   </>
                 ) : (
@@ -162,9 +162,9 @@ export default function SessionSidebar() {
                       setConfirmDeleteId(session.id)
                     }}
                     title="Delete"
-                    className="p-1 text-[#71717a] opacity-0 hover:text-red-400 group-hover:opacity-100"
+                    className="p-1 text-[#71717a] opacity-0 hover:text-red-400 group-hover:opacity-100 cursor-pointer"
                   >
-                    <X className="size-4" strokeWidth={2} />
+                    <Trash2 className="size-4" strokeWidth={2} />
                   </button>
                 )}
               </div>
