@@ -179,21 +179,21 @@ export async function POST(req: Request) {
           system: SYSTEM_PROMPT,
           tools: [
             {
-              type: "computer_20241022",
+              type: "computer_20250124",
               name: "computer",
               display_width_px: resolution.x,
               display_height_px: resolution.y,
               display_number: 1,
             },
             {
-              type: "bash_20241022",
+              type: "bash_20250124",
               name: "bash",
             },
           ],
           messages: currentMessages as Parameters<
             typeof client.beta.messages.stream
           >[0]["messages"],
-          betas: ["computer-use-2024-10-22"],
+          betas: ["computer-use-2025-02-05"],
         });
 
         // Stream text deltas to frontend
