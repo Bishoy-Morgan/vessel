@@ -15,11 +15,7 @@ const client = new AnthropicBedrock({
   awsRegion: process.env.AWS_REGION ?? "us-east-1",
 });
 
-// const MODEL = "us.anthropic.claude-opus-4-1-20250514-v1:0"; // Most capable
-const MODEL = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"; // Best balance
-// const MODEL = "us.anthropic.claude-haiku-4-5-20250929-v1:0"; // Fastest/cheapest
-// const MODEL = "us.anthropic.claude-3-7-sonnet-20250219-v1:0"; // Legacy
-// const MODEL = "us.anthropic.claude-3-5-sonnet-20241022-v2:0"; // Legacy
+const MODEL = "us.anthropic.claude-sonnet-4-5-20250929-v1:0";
 
 const SYSTEM_PROMPT =
   "Never describe your actions in text. Only use the provided tools directly without narrating what you are doing. " +
