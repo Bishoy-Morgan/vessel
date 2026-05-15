@@ -35,7 +35,7 @@ export default function Chat() {
     setSelectedToolCall(toolCall);
   }, []);
 
-  const { addEvent } = useEventStore();
+  const { addEvent, clearEvents } = useEventStore();
   const { sessions, activeSessionId, updateSession } = useChatStore();
   const activeSession = sessions.find(s => s.id === activeSessionId);
 
@@ -125,8 +125,9 @@ export default function Chat() {
     } else {
       setMessages([]);
     }
-  }, [activeSessionId]); // eslint-disable-line react-hooks/exhaustive-deps -- activeSession and setMessages intentionally omitted: activeSession is a derived object (new ref each render), setMessages is stable but not memoized by SDK
-
+    clearEvents();
+  }, [activeSessionId]); // eslint-disable-line react-hooks/exhaustive-deps
+  
   const stop = () => {
     stopGeneration();
     const lastMessage = messages.at(-1);

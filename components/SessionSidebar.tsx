@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useChatStore } from '@/src/store/chatStore'
-import { ChevronLeft, ChevronRight, MessageSquare, Plus, Pencil, Check, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MessageSquare, Plus, Pencil, Check, Delete } from 'lucide-react'
 
 export default function SessionSidebar() {
   const { sessions, activeSessionId, createSession, deleteSession, setActiveSession, updateSession } = useChatStore()
@@ -43,7 +43,7 @@ export default function SessionSidebar() {
       {/* Blue (bottom-left) → black (top-right) */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden bg-black" aria-hidden />
       <div
-        className="pointer-events-none absolute inset-0 overflow-hidden bg-gradient-to-tr from-[#2563eb]/50 via-[#080808] to-black"
+        className="pointer-events-none absolute inset-0 overflow-hidden bg-linear-to-tr from-[#2563eb]/50 via-[#080808] to-black"
         aria-hidden
       />
 
@@ -151,7 +151,7 @@ export default function SessionSidebar() {
                       className="p-1 text-[#71717a] hover:text-white"
                       title="Cancel"
                     >
-                      <X className="size-4" strokeWidth={2} />
+                      <Delete className="size-4" strokeWidth={2} />
                     </button>
                   </>
                 ) : (
