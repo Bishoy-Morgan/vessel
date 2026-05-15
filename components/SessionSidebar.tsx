@@ -9,6 +9,7 @@ export default function SessionSidebar() {
   const [collapsed, setCollapsed] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   const handleNewSession = () => {
     const time = new Date().toLocaleTimeString('en-US', {
@@ -127,17 +128,45 @@ export default function SessionSidebar() {
                     <Pencil className="size-4" strokeWidth={2} />
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    deleteSession(session.id)
-                  }}
-                  title="Remove"
-                  className="p-1 text-[#71717a] opacity-0 hover:text-red-400 group-hover:opacity-100"
-                >
-                  <X className="size-4" strokeWidth={2} />
-                </button>
+                {confirmDeleteId === session.id ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        deleteSession(session.id)
+                        setConfirmDeleteId(null)
+                      }}
+                      className="p-1 text-red-400 hover:text-red-300"
+                      title="Confirm delete"
+                    >
+                      <Check className="size-4" strokeWidth={2} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setConfirmDeleteId(null)
+                      }}
+                      className="p-1 text-[#71717a] hover:text-white"
+                      title="Cancel"
+                    >
+                      <X className="size-4" strokeWidth={2} />
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setConfirmDeleteId(session.id)
+                    }}
+                    title="Delete"
+                    className="p-1 text-[#71717a] opacity-0 hover:text-red-400 group-hover:opacity-100"
+                  >
+                    <X className="size-4" strokeWidth={2} />
+                  </button>
+                )}
               </div>
             </li>
           ))}

@@ -82,10 +82,19 @@ export default function Chat() {
       });
     
       if (activeSessionId) {
-        updateSession(activeSessionId, {
-          messages: messagesRef.current,
-          updatedAt: Date.now(),
-        });
+        const currentMessages = messagesRef.current;
+        const session = useChatStore.getState().sessions.find(s => s.id === activeSessionId);
+        const isFirstExchange = currentMessages.length <= 2;
+        const firstUserMsg = currentMessages.find(m => m.role === 'user');
+    
+        if (session && isFirstExchange && firstUserMsg?.content) {
+          const name = typeof firstUserMsg.content === 'string'
+            ? firstUserMsg.content.slice(0, 40)
+            : 'New Chat';
+          updateSession(activeSessionId, { name, messages: currentMessages, updatedAt: Date.now() });
+        } else {
+          updateSession(activeSessionId, { messages: currentMessages, updatedAt: Date.now() });
+        }
       }
     },
     onError: (error) => {
