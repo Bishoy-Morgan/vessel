@@ -3,6 +3,9 @@
 import { useState } from 'react'
 import { useChatStore } from '@/src/store/chatStore'
 import { ChevronLeft, ChevronRight, MessageSquare, Plus, Pencil, Check, X, Trash2 } from 'lucide-react'
+import Image from 'next/image'
+import logo from '@/public/logo.png'
+import robot from '@/public/energent.png'
 
 export default function SessionSidebar() {
   const { sessions, activeSessionId, createSession, deleteSession, setActiveSession, updateSession } = useChatStore()
@@ -60,23 +63,43 @@ export default function SessionSidebar() {
       </button>
 
       {/* Header */}
-      <div className={`relative z-10 p-3 border-b border-[#1a1a1a] flex items-center ${collapsed ? 'justify-center' : 'justify-between'}`}>
-        {!collapsed && (
-          <span className="text-xs font-medium text-[#71717a] uppercase tracking-wider">Sessions</span>
+      <div className={`relative z-10 p-3 flex items-center`}>
+        {collapsed ? (
+          <Image 
+            src={robot}
+            alt='Energent Logo'
+            width={36}
+            height={36}
+          />
+        ) : (
+          <Image 
+            src={logo}
+            alt='Energent Logo'
+            width={180}
+            height={36}
+          />
         )}
+      </div>
+
+      {/* Header */}
+      <div className={`relative z-10 p-3 flex items-center gap-x-3 mt-2`}>
         <button
           type="button"
           onClick={handleNewSession}
           className="flex size-8 shrink-0 items-center justify-center rounded-full border border-[#2563eb]/40 bg-black text-[#93c5fd] hover:bg-[#2563eb]/15"
           title="New Session"
         >
-          <Plus className="size-4" strokeWidth={2} aria-hidden />
+          <Plus className="size-5" strokeWidth={2} aria-hidden />
         </button>
+        {!collapsed && (
+          <span className="text-sm font-medium text-[#71717a] uppercase tracking-wider">Add Session</span>
+        )}
       </div>
 
       {/* Sessions list */}
       {!collapsed && (
-        <ul className="relative z-10 flex flex-col gap-1.5 flex-1 min-h-0 overflow-y-auto px-3 py-2">
+        <ul className="relative z-10 flex flex-col gap-1.5 flex-1 min-h-0 overflow-y-auto px-3 py-2 mt-4">
+          <span className='text-xs text-[#71717a] inline-block'>Recents</span>
           {sessions.length === 0 && (
             <li className="text-xs text-[#71717a] text-center py-4">No sessions yet</li>
           )}
@@ -113,7 +136,7 @@ export default function SessionSidebar() {
                   <button
                     type="button"
                     onClick={(e) => confirmRename(e, session.id)}
-                    className="p-1 text-[#2563eb] hover:text-white cursor-pointer"
+                    className="p-1 hover:text-[#2563eb] text-white cursor-pointer"
                     title="Save"
                   >
                     <Check className="size-4" strokeWidth={2} />
@@ -137,7 +160,7 @@ export default function SessionSidebar() {
                         deleteSession(session.id)
                         setConfirmDeleteId(null)
                       }}
-                      className="p-1 text-red-400 hover:text-red-300 cursor-pointer"
+                      className="p-1 text-[#71717a] hover:text-red-700 cursor-pointer"
                       title="Confirm delete"
                     >
                       <Check className="size-4" strokeWidth={2} />
