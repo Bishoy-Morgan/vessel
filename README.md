@@ -8,7 +8,7 @@ A full-stack AI agent that controls a real computer through natural language. Bu
 
 ![Demo]
 
-https://github.com/user-attachments/assets/217fb44a-af00-4bde-a42d-810484f8e8ad
+https://github.com/user-attachments/assets/6df81c37-a517-434b-92c7-10f05fa317f5
 
 ---
 
