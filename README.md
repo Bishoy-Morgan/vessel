@@ -6,7 +6,9 @@ A full-stack AI agent that controls a real computer through natural language. Bu
 
 ---
 
-![Demo](./public/demo.mp4)
+![Demo]
+
+https://github.com/user-attachments/assets/217fb44a-af00-4bde-a42d-810484f8e8ad
 
 ---
 
@@ -111,3 +113,4 @@ VERCEL_OIDC_TOKEN=
 ```
 
 The AWS credentials need `bedrock:InvokeModel` permission on `us.anthropic.claude-sonnet-4-5-20250929-v1:0` in `us-east-1`. No Anthropic API key is required — all inference goes through AWS.
+
