@@ -4,8 +4,6 @@ import { useState } from 'react'
 import { useChatStore } from '@/src/store/chatStore'
 import { ChevronLeft, ChevronRight, MessageSquare, Plus, Pencil, Check, X, Trash2 } from 'lucide-react'
 import Image from 'next/image'
-import energentLogo from '@/public/images/energentLogo.png'
-import energentSymbol from '@/public/images/energentSymbol.png'
 
 export default function SessionSidebar() {
   const { sessions, activeSessionId, createSession, deleteSession, setActiveSession, updateSession } = useChatStore()
@@ -66,14 +64,14 @@ export default function SessionSidebar() {
       <div className={`relative z-10 p-3 flex items-center`}>
         {collapsed ? (
           <Image 
-            src={energentSymbol}
+            src="/images/energentSymbol.png"
             alt='Energent Symbol'
             width={36}
             height={36}
           />
         ) : (
           <Image 
-            src={energentLogo}
+            src="/images/energentLogo.png"
             alt='Energent Logo'
             width={180}
             height={36}
