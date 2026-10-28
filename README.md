@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://ai-agent-dashboard-nu.vercel.app"><b>Live demo</b></a>
+  <a href="https://vessel-ai-agent.vercel.app"><b>Live demo</b></a>
 </p>
 
 ---
