@@ -9,20 +9,18 @@ export function DemoVideo() {
     const videoNode = videoRef.current;
     if (!videoNode) return;
 
-    // IntersectionObserver plays video when scrolled into view and pauses when out
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
             videoNode.play().catch(() => {
-              // Handle potential browser autoplay policy restrictions silently
             });
           } else {
             videoNode.pause();
           }
         });
       },
-      { threshold: 0.3 } // Triggers when 30% of the video is visible
+      { threshold: 0.3 }
     );
 
     observer.observe(videoNode);
