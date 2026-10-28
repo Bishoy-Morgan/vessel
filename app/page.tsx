@@ -8,6 +8,7 @@ import { FeatureGrid } from "./(marketing)/components/FeatureGrid";
 import { GetStarted } from "./(marketing)/components/GetStarted";
 import { FaqAccordion } from "./(marketing)/components/FaqAccordion";
 import { Footer } from "./(marketing)/components/Footer";
+import { DemoVideo } from "./(marketing)/components/DemoVideo";
 
 export const metadata: Metadata = {
   title: "Vessel: an AI agent that uses a computer like you do",
@@ -28,6 +29,7 @@ export default function HomePage() {
         <HeroSection />
         <HowItWorks />
         <AgentWorkspace />
+        <DemoVideo />
         <UseCases />
         <FeatureGrid />
         <GetStarted />

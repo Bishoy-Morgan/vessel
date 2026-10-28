@@ -1,159 +1,174 @@
 "use client";
 
-import React, { useState } from "react";
-import { Monitor, Check, Terminal, MousePointer } from "lucide-react";
+import { useState } from "react";
+import { Monitor, Check, Terminal, MousePointer, Globe, FileText } from "lucide-react";
 
 const TASKS = [
   {
     id: "browser",
-    title: "Browser Navigation & Extraction",
-    desc: "Opens Chrome on Linux desktop, navigates to target URL, takes screenshot, and extracts data.",
-    prompt: "Open Chrome on the desktop, go to Github trends, find top TypeScript repos, and save a summary to desktop.",
+    icon: Globe,
+    title: "Browse and extract",
+    desc: "Opens Chrome, loads a page, and reads what's on it.",
+    prompt:
+      "Open Chrome, go to github.com/trending/typescript, and tell me the name and description of the top repository.",
     logs: [
-      { type: "info", text: "✓ Vercel Sandbox provisioned • Xfce desktop online" },
-      { type: "info", text: "✓ computerExecute({ action: 'screenshot' }) → 1920x1080 captured" },
-      { type: "info", text: "✓ computerExecute({ action: 'mouse_move', coordinate: [420, 180] })" },
-      { type: "info", text: "✓ computerExecute({ action: 'left_click' }) → Chrome address bar focused" },
-      { type: "success", text: "✓ bashExecute({ command: 'cat ~/Desktop/summary.txt' }) → Task Complete" },
+      "computerExecute({ action: 'screenshot' })",
+      "computerExecute({ action: 'left_click', coordinate: [420, 60] })",
+      "computerExecute({ action: 'type', text: 'github.com/trending/typescript' })",
+      "computerExecute({ action: 'screenshot' })",
     ],
-    lastScreen: "Chrome Browser • GitHub Trending Page",
+    result: "Agent reads the page and replies with the top repository's name and description.",
+    lastScreen: "Chrome • GitHub Trending",
   },
   {
     id: "terminal",
-    title: "Repository Clone & Test Suite",
-    desc: "Runs bash commands in terminal, installs dependencies with pnpm, and runs unit tests.",
-    prompt: "Clone the repo, install packages using pnpm, run tests, and fix any broken assertion.",
+    icon: Terminal,
+    title: "Run terminal commands",
+    desc: "Runs shell commands in the sandbox and explains the output.",
+    prompt:
+      "Open a terminal, run `uname -a` and `df -h`, then explain the output in two sentences.",
     logs: [
-      { type: "info", text: "✓ bashExecute({ command: 'git clone https://...' })" },
-      { type: "info", text: "✓ bashExecute({ command: 'pnpm install' }) → 739 packages added" },
-      { type: "info", text: "✓ bashExecute({ command: 'pnpm test' }) → Fail on test_auth.ts:42" },
-      { type: "success", text: "✓ computerExecute({ action: 'type', text: 'vim src/auth.ts' }) → Fix applied" },
+      "bashExecute({ command: 'uname -a' })",
+      "bashExecute({ command: 'df -h' })",
     ],
-    lastScreen: "Xfce Terminal • All 42 Tests Passing",
+    result: "Agent summarizes the kernel and disk usage in two sentences.",
+    lastScreen: "Xfce Terminal",
+  },
+  {
+    id: "file",
+    icon: FileText,
+    title: "Create a file",
+    desc: "Uses a desktop app to write and save a file.",
+    prompt:
+      "Open a text editor, create a file called notes.txt on the Desktop containing 'Hello from Vessel', and save it.",
+    logs: [
+      "computerExecute({ action: 'screenshot' })",
+      "computerExecute({ action: 'type', text: 'Hello from Vessel' })",
+      "computerExecute({ action: 'key', text: 'ctrl+s' })",
+    ],
+    result: "Agent confirms notes.txt is saved on the Desktop.",
+    lastScreen: "Text editor • notes.txt",
   },
 ];
 
 export function AgentWorkspace() {
-  const [activeTask, setActiveTask] = useState("browser");
-  const currentTask = TASKS.find((t) => t.id === activeTask) || TASKS[0];
+  const [activeTask, setActiveTask] = useState(TASKS[0].id);
+  const currentTask = TASKS.find((t) => t.id === activeTask) ?? TASKS[0];
+
+  const MODEL_LABEL = "Claude Sonnet 4.5";
 
   return (
     <section id="workspace" className="py-20 bg-background border-b border-border">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center max-w-3xl mx-auto mb-12">
           <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground">
-            Watch the Agent Control the Computer
+            Example session: watch the agent work
           </h2>
           <p className="mt-4 text-muted-foreground text-lg">
-            Vessel executes an autonomous server-side loop: capturing screenshots, calculating coordinates, and streaming real-time desktop state back via noVNC.
+            A sample run showing the tool calls Vessel makes. Launch the dashboard to run a real one.
           </p>
         </div>
 
         <div className="bg-card border border-border rounded-xl overflow-hidden shadow-2xl">
-          {/* Top Control Bar */}
-          <div className="bg-muted px-4 py-3 border-b border-border flex items-center justify-between">
+          {/* Top bar */}
+          <div className="bg-muted px-4 py-3 border-b border-border flex items-center justify-between gap-3">
             <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 rounded-full bg-border" />
-              <div className="w-3 h-3 rounded-full bg-border" />
-              <div className="w-3 h-3 rounded-full bg-border" />
+              <div className="w-3 h-3 rounded-full bg-border" aria-hidden />
+              <div className="w-3 h-3 rounded-full bg-border" aria-hidden />
+              <div className="w-3 h-3 rounded-full bg-border" aria-hidden />
               <span className="text-xs font-mono text-muted-foreground ml-2">
-                vessel-vnc-session :: sandbox_id: sbx_89f4a12
+                example-session
               </span>
             </div>
             <div className="flex items-center space-x-3 text-xs font-mono">
-              <span className="flex items-center text-emerald-500">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 mr-1.5 animate-pulse" />
-                VNC Live Stream
+              <span className="hidden sm:flex items-center text-muted-foreground">
+                <span className="w-2 h-2 rounded-full bg-muted-foreground mr-1.5" aria-hidden />
+                Sample session
               </span>
               <span className="bg-primary/10 text-primary border border-primary/30 px-2 py-0.5 rounded">
-                Claude Sonnet 4.5
+                {MODEL_LABEL}
               </span>
             </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 min-h-130">
-            {/* Left Sidebar: Routine Selector */}
-            <div className="lg:col-span-4 border-r border-border bg-card p-4 space-y-3">
+            {/* Task picker */}
+            <div className="lg:col-span-4 border-b lg:border-b-0 lg:border-r border-border bg-card p-4 space-y-3">
               <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2 mb-2">
-                Sample Instructions
+                Sample instructions
               </div>
-              {TASKS.map((task) => (
+              {TASKS.map(({ id, icon: Icon, title, desc }) => (
                 <button
-                  key={task.id}
-                  onClick={() => setActiveTask(task.id)}
-                  className={`w-full text-left p-3.5 rounded-md border transition-all ${
-                    activeTask === task.id
+                  key={id}
+                  type="button"
+                  onClick={() => setActiveTask(id)}
+                  aria-pressed={activeTask === id}
+                  className={`w-full text-left p-3.5 rounded-md border transition-all focus-visible:outline-2 focus-visible:outline-primary ${
+                    activeTask === id
                       ? "bg-secondary border-primary text-foreground shadow-sm"
                       : "bg-background/50 border-border text-muted-foreground hover:border-border hover:text-foreground"
                   }`}
                 >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-semibold text-sm text-foreground flex items-center">
-                      <Monitor className="w-4 h-4 mr-2 text-primary" />
-                      {task.title}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
-                    {task.desc}
-                  </p>
+                  <span className="font-semibold text-sm text-foreground flex items-center">
+                    <Icon className="w-4 h-4 mr-2 text-primary" aria-hidden />
+                    {title}
+                  </span>
+                  <p className="text-xs text-muted-foreground mt-1">{desc}</p>
                 </button>
               ))}
             </div>
 
-            {/* Right Panel: Simulated VNC Window & Telemetry Stream */}
+            {/* Example run */}
             <div className="lg:col-span-8 p-6 flex flex-col justify-between bg-background">
               <div>
-                {/* User Instruction Box */}
                 <div className="bg-card border border-border rounded-lg p-4 mb-6">
                   <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5 font-mono">
                     <span>USER PROMPT</span>
-                    <span className="text-primary">AGENT LOOP: RUNNING</span>
+                    <span className="text-primary">EXAMPLE</span>
                   </div>
                   <p className="text-sm text-foreground font-mono">
                     &quot;{currentTask.prompt}&quot;
                   </p>
                 </div>
 
-                {/* Agent Execution Logs */}
                 <div className="space-y-2 mb-6 font-mono text-xs">
                   <div className="text-muted-foreground mb-1">
-                    {"// "}Server-Side Tool Telemetry Stream
+                    {"// "}Tool calls the agent makes
                   </div>
                   {currentTask.logs.map((log, index) => (
                     <div
                       key={index}
-                      className="bg-card border border-border p-2.5 rounded text-card-foreground flex items-center justify-between"
+                      className="bg-card border border-border p-2.5 rounded text-card-foreground flex items-center justify-between gap-3"
                     >
-                      <span>{log.text}</span>
-                      <Check className="w-3.5 h-3.5 text-emerald-500" />
+                      <span className="break-all">{log}</span>
+                      <Check className="w-3.5 h-3.5 shrink-0 text-emerald-500" aria-hidden />
                     </div>
                   ))}
+                  <p className="pt-1 text-muted-foreground font-sans text-sm">
+                    {currentTask.result}
+                  </p>
                 </div>
 
-                {/* Mock noVNC Desktop Screen View */}
                 <div className="bg-muted/40 border border-border rounded-lg p-4 flex flex-col items-center justify-center min-h-35 relative overflow-hidden">
                   <div className="absolute top-2 left-3 text-[10px] font-mono text-muted-foreground flex items-center">
-                    <MousePointer className="w-3 h-3 text-primary mr-1 animate-bounce" />
-                    <span>Active Screen State: {currentTask.lastScreen}</span>
+                    <MousePointer className="w-3 h-3 text-primary mr-1" aria-hidden />
+                    <span>Screen: {currentTask.lastScreen}</span>
                   </div>
                   <div className="text-center py-6">
-                    <Monitor className="w-10 h-10 text-primary/70 mx-auto mb-2" />
+                    <Monitor className="w-10 h-10 text-primary/70 mx-auto mb-2" aria-hidden />
                     <span className="text-xs font-mono text-muted-foreground">
-                      Xfce Virtual Desktop (1920x1080) • Streamed via noVNC
+                      In the real dashboard, the live desktop appears here via noVNC
                     </span>
                   </div>
                 </div>
               </div>
 
-              {/* Status Footer */}
-              <div className="mt-6 pt-4 border-t border-border flex items-center justify-between text-xs font-mono text-muted-foreground">
+              <div className="mt-6 pt-4 border-t border-border flex flex-wrap items-center justify-between gap-2 text-xs font-mono text-muted-foreground">
                 <span className="flex items-center">
-                  <Terminal className="w-3.5 h-3.5 text-primary mr-1.5" />
-                  POST /api/chat • Single-request agentic loop
+                  <Terminal className="w-3.5 h-3.5 text-primary mr-1.5" aria-hidden />
+                  POST /api/chat • Single-request agent loop
                 </span>
-                <span className="text-emerald-500 font-semibold">
-                  Zero Client-Side Credentials Exposed
-                </span>
+                <span>Credentials stay server-side</span>
               </div>
             </div>
           </div>
