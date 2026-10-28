@@ -1,7 +1,7 @@
-"use client";
-
-import { AISDKLogo } from "@/components/icons";
 import type { ReactNode } from "react";
+import Link from "next/link";
+import { VesselLogo } from "@/components/brand/VesselLogo";
+import { brandFont } from "@/lib/fonts";
 
 type FullPageNoticeProps = {
   code?: string;
@@ -19,29 +19,41 @@ export function FullPageNotice({
   children,
 }: FullPageNoticeProps) {
   return (
-    <div className="flex min-h-dvh flex-col bg-black text-white">
-      <header className="shrink-0 border-b border-[#1a1a1a] bg-black px-4 py-3">
-        <div className="flex items-center justify-between gap-4">
-          <AISDKLogo />
-          <span className="text-xs font-mono text-[#71717a]">
-            AI Agent Dashboard
+    <div className="relative flex min-h-dvh flex-col bg-background text-foreground overflow-hidden">
+      <div className="pointer-events-none absolute inset-0 bg-black" aria-hidden />
+      <div
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,var(--tw-gradient-stops))] from-primary/20 via-background to-background"
+        aria-hidden
+      />
+
+      <header className="relative z-10 shrink-0 bg-background/80 backdrop-blur-md px-6 py-4">
+        <Link href="/" aria-label="Vessel home" className="inline-flex items-center gap-3 group">
+          <VesselLogo className="size-8 transition-transform group-hover:scale-105" />
+          <span
+            className={`${brandFont.className} text-xl font-light uppercase tracking-[0.22em] bg-linear-to-r from-white via-blue-200 to-primary bg-clip-text text-transparent`}
+          >
+            VESSEL
           </span>
-        </div>
+        </Link>
       </header>
-      <main className="flex flex-1 flex-col items-center justify-center bg-[#0a0a0a] px-4 py-12">
-        <div className="w-full max-w-md rounded-lg border border-[#1a1a1a] bg-black p-8 text-center">
+
+      <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-12">
+        <div className="w-full max-w-md rounded-xl border border-border bg-card/60 backdrop-blur-xl p-8 text-center shadow-2xl shadow-primary/5">
           {code !== undefined ? (
-            <p className="mb-4 font-mono text-5xl font-semibold tracking-tight text-[#71717a]">
+            <p className="mb-3 font-mono text-6xl font-extrabold tracking-tight bg-linear-to-b from-foreground to-muted-foreground bg-clip-text text-transparent">
               {code}
             </p>
           ) : null}
-          <p className="text-xs font-mono uppercase tracking-wider text-[#71717a]">
+
+          <div className="inline-flex items-center rounded-full bg-primary/10 border border-primary/30 px-3 py-1 text-xs font-mono uppercase tracking-wider text-primary mb-3">
             {badge}
-          </p>
-          <h1 className="mt-2 text-xl font-semibold text-white">{title}</h1>
-          <p className="mt-2 text-sm leading-relaxed text-[#71717a]">
+          </div>
+
+          <h1 className="mt-2 text-2xl font-bold tracking-tight text-foreground">{title}</h1>
+          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
             {description}
           </p>
+
           {children ? (
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
               {children}
