@@ -11,7 +11,7 @@ export function Navbar() {
           <Link href="/" aria-label="Vessel home" className="flex items-center space-x-3 group">
             <VesselLogo className="w-9 h-9 drop-shadow-[0_0_10px_rgba(59,130,246,0.5)] transition-transform group-hover:scale-105" />
             <span
-              className={`${brandFont.className} text-xl font-bold uppercase tracking-[0.22em] bg-linear-to-r from-white via-blue-200 to-blue-400 bg-clip-text text-transparent`}
+              className={`${brandFont.className} text-xl font-light uppercase tracking-[0.22em] bg-linear-to-r from-white via-blue-200 to-blue-400 bg-clip-text text-transparent`}
             >
               Vessel
             </span>

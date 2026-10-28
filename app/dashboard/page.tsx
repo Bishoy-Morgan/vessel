@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Input } from "@/components/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { AISDKLogo } from "@/components/icons";
+import ChatHeader from "@/components/ChatHeader";
 import { PromptSuggestions } from "@/components/prompt-suggestions";
 import {
   ResizableHandle,
@@ -234,10 +234,11 @@ export default function Chat() {
           <ResizablePanel defaultSize={35} minSize={25} className="flex flex-col bg-[#0a0a0a]">
 
             {/* Header */}
-            <div className="px-4 py-3 border-b border-[#1a1a1a] flex items-center justify-between shrink-0">
-              <AISDKLogo />
-              <span className="text-xs text-[#71717a] font-mono">AI Agent Dashboard</span>
-            </div>
+            <ChatHeader
+              sessionName={activeSession?.name}
+              status={status}
+              isInitializing={isInitializing}
+            />
 
             {/* Messages */}
             <div
@@ -329,7 +330,11 @@ export default function Chat() {
       {/* Mobile View */}
       <div className="flex-1 xl:hidden flex flex-col bg-[#0a0a0a]">
         <div className="px-4 py-3 border-b border-[#1a1a1a] flex items-center justify-between">
-          <AISDKLogo />
+          <ChatHeader
+            sessionName={activeSession?.name}
+            status={status}
+            isInitializing={isInitializing}
+          />
           <span className="text-xs text-[#71717a]">Mobile Mode</span>
         </div>
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
