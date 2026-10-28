@@ -15,7 +15,7 @@
 
 ---
 
-https://github.com/user-attachments/assets/6df81c37-a517-434b-92c7-10f05fa317f5
+[https://github.com/user-attachments/assets/6df81c37-a517-434b-92c7-10f05fa317f5](https://github.com/Bishoy-Morgan/vessel/issues/2#issue-6081074964)
 
 ---
 
