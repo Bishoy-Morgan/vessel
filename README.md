@@ -112,6 +112,8 @@ SANDBOX_SNAPSHOT_ID=
 VERCEL_OIDC_TOKEN=
 ```
 
+Set `SANDBOX_SNAPSHOT_ID` to the ID printed after creating a sandbox snapshot.
+
 Then:
 
 ```bash

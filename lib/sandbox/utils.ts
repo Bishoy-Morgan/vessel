@@ -36,10 +36,15 @@ export const getDesktop = async (id?: string, opts?: GetDesktopOptions) => {
       }
     }
 
+    const snapshotId = process.env.SANDBOX_SNAPSHOT_ID?.trim();
+    if (!snapshotId) {
+      throw new Error("Desktop startup is not configured. Set SANDBOX_SNAPSHOT_ID.");
+    }
+
     const sandbox = await Sandbox.create({
       source: {
         type: "snapshot",
-        snapshotId: process.env.SANDBOX_SNAPSHOT_ID!,
+        snapshotId,
       },
       timeout: 300000,
       ports: [NOVNC_PORT],

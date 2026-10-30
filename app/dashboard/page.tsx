@@ -166,6 +166,7 @@ export default function Chat() {
       setSandboxId(id);
     } catch (err) {
       console.error("Failed to refresh desktop:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to refresh desktop");
     } finally {
       setIsInitializing(false);
     }
@@ -211,7 +212,7 @@ export default function Chat() {
         }
       } catch (err) {
         console.error("Failed to initialize desktop:", err);
-        toast.error("Failed to initialize desktop");
+        toast.error(err instanceof Error ? err.message : "Failed to initialize desktop");
       } finally {
         setIsInitializing(false);
       }
