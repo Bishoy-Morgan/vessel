@@ -1,21 +1,24 @@
 import { AnthropicBedrock } from "@anthropic-ai/bedrock-sdk";
 import { computerExecute, bashExecute, resolution } from "@/lib/sandbox/tool";
 import type { UIMessage } from "ai";
+import { checkLimit, ipFrom, verifySandbox } from "@/lib/guard";
 
 export const maxDuration = 300;
 
-
-// AnthropicBedrock client — uses AWS credentials, NOT Anthropic API credits
-// Routes through AWS Bedrock but uses native Anthropic API format,
-// which supports computer use beta headers unlike the Converse API
-
+// AnthropicBedrock client: uses AWS credentials, not Anthropic API credits.
+// Routes through AWS Bedrock but uses the native Anthropic API format,
+// which supports the computer-use beta flag, unlike the Converse API.
 const client = new AnthropicBedrock({
   awsAccessKey: process.env.AWS_ACCESS_KEY_ID!,
   awsSecretKey: process.env.AWS_SECRET_ACCESS_KEY!,
   awsRegion: process.env.AWS_REGION ?? "us-east-1",
 });
 
-const MODEL = "us.anthropic.claude-sonnet-4-5-20250929-v1:0";
+const MODEL =
+  process.env.BEDROCK_MODEL_ID ?? "us.anthropic.claude-sonnet-4-5-20250929-v1:0";
+const MAX_STEPS = 20;
+const MAX_PROMPT_CHARS = 2000;
+const MAX_MESSAGES = 60;
 
 const SYSTEM_PROMPT =
   "Never describe your actions in text. Only use the provided tools directly without narrating what you are doing. " +
@@ -26,21 +29,20 @@ const SYSTEM_PROMPT =
   "Be sure to advise the user when waiting is necessary. " +
   "If the browser opens with a setup wizard, YOU MUST IGNORE IT and move straight to the next step (e.g. input the url in the search bar).";
 
-  
-  // AI SDK data stream format — useChat expects these prefixed lines
-  // 0=text delta, 2=data, 8=annotation, 9=tool_call, a=tool_result,
-  // e=finish_step, d=finish_message, 3=error
-  
-
+// AI SDK data stream format: useChat expects these prefixed lines
+// 0=text delta, 2=data, 8=annotation, 9=tool_call, a=tool_result,
+// e=finish_step, d=finish_message, 3=error
 function part(code: string, value: unknown): string {
   return `${code}:${JSON.stringify(value)}\n`;
 }
 
+// Plain-text error for rejected requests. useChat shows this text to the user.
+const fail = (message: string, status: number) =>
+  new Response(message, { status });
 
-// Convert AI SDK UIMessage[] → Anthropic MessageParam[]
-// UIMessage has parts[] with tool-invocation entries
-// Anthropic wants alternating user/assistant turns with content blocks
-
+// Convert AI SDK UIMessage[] to Anthropic MessageParam[].
+// UIMessage has parts[] with tool-invocation entries.
+// Anthropic wants alternating user/assistant turns with content blocks.
 type AnthropicMessage = {
   role: "user" | "assistant";
   content:
@@ -124,12 +126,11 @@ function toAnthropicMessages(messages: UIMessage[]): AnthropicMessage[] {
       }
 
       // If parts had tool invocations but none completed (all skipped),
-      // drop the entire assistant turn to avoid orphaned tool_use blocks
-      const hadToolInvocations = msg.parts?.some(p => p.type === 'tool-invocation');
+      // drop the entire assistant turn to avoid orphaned tool_use blocks.
+      const hadToolInvocations = msg.parts?.some((p) => p.type === "tool-invocation");
       const hasCompletedTools = toolUseBlocks.length > 0;
 
       if (hadToolInvocations && !hasCompletedTools) {
-        // Drop this turn entirely — incomplete tool calls corrupt history
         continue;
       }
 
@@ -148,25 +149,42 @@ function toAnthropicMessages(messages: UIMessage[]): AnthropicMessage[] {
 }
 
 // Route handler
-
 export async function POST(req: Request) {
-  let body: { messages?: UIMessage[]; sandboxId?: string };
+  let body: { messages?: UIMessage[]; sandboxId?: string; sandboxToken?: string };
   try {
     body = await req.json();
   } catch {
-    return new Response(part("3", "Invalid JSON body"), { status: 400 });
+    return fail("Invalid JSON body", 400);
   }
 
   const rawMessages = body.messages ?? [];
   const sandboxId = body.sandboxId;
 
   if (rawMessages.length === 0) {
-    return new Response(part("3", "No messages provided"), { status: 400 });
+    return fail("No messages provided", 400);
   }
   if (!sandboxId) {
-    return new Response(part("3", "No sandboxId — desktop not initialized"), {
-      status: 400,
-    });
+    return fail("No desktop started. Send your message again.", 400);
+  }
+  if (!verifySandbox(body.sandboxToken, sandboxId)) {
+    return fail("Desktop session expired. Click New desktop.", 403);
+  }
+  if (rawMessages.length > MAX_MESSAGES) {
+    return fail("This conversation is too long. Start a new session.", 400);
+  }
+  const last = rawMessages.at(-1);
+  if (
+    last?.role === "user" &&
+    typeof last.content === "string" &&
+    last.content.length > MAX_PROMPT_CHARS
+  ) {
+    return fail(`Keep prompts under ${MAX_PROMPT_CHARS} characters.`, 400);
+  }
+
+  // Rate limit last, so invalid requests don't use up someone's daily runs.
+  const gate = await checkLimit("runs", ipFrom(req.headers));
+  if (!gate.ok) {
+    return fail(gate.error, 429);
   }
 
   const anthropicMessages = toAnthropicMessages(rawMessages);
@@ -174,47 +192,50 @@ export async function POST(req: Request) {
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
   const writer = writable.getWriter();
   const encoder = new TextEncoder();
-  const write = (s: string) => writer.write(encoder.encode(s));
+  const write = (s: string) => writer.write(encoder.encode(s)).catch(() => {});
 
   (async () => {
     try {
       const currentMessages: AnthropicMessage[] = [...anthropicMessages];
       let stepCount = 0;
-      const maxSteps = 30;
+      let hitCap = false;
 
-      while (stepCount < maxSteps) {
+      while (true) {
+        if (req.signal.aborted) break;
+        if (stepCount >= MAX_STEPS) {
+          hitCap = true;
+          break;
+        }
         stepCount++;
-        const pendingToolUses: Array<{
-          id: string;
-          name: string;
-          input: unknown;
-        }> = [];
 
-        // Stream from Anthropic Bedrock with computer use beta header
-        const stream = await client.beta.messages.stream({
-          model: MODEL,
-          max_tokens: 4096,
-          system: SYSTEM_PROMPT,
-          tools: [
-            {
-              type: "computer_20250124",
-              name: "computer",
-              display_width_px: resolution.x,
-              display_height_px: resolution.y,
-              display_number: 1,
-            },
-            {
-              type: "bash_20250124",
-              name: "bash",
-            },
-          ],
-          messages: currentMessages as Parameters<
-            typeof client.beta.messages.stream
-          >[0]["messages"],
-          betas: ["computer-use-2025-01-24"],
-        });
+        // Stream from Anthropic Bedrock with the computer-use beta flag
+        const stream = await client.beta.messages.stream(
+          {
+            model: MODEL,
+            max_tokens: 4096,
+            system: SYSTEM_PROMPT,
+            tools: [
+              {
+                type: "computer_20250124",
+                name: "computer",
+                display_width_px: resolution.x,
+                display_height_px: resolution.y,
+                display_number: 1,
+              },
+              {
+                type: "bash_20250124",
+                name: "bash",
+              },
+            ],
+            messages: currentMessages as Parameters<
+              typeof client.beta.messages.stream
+            >[0]["messages"],
+            betas: ["computer-use-2025-01-24"],
+          },
+          { signal: req.signal },
+        );
 
-        // Stream text deltas to frontend
+        // Stream text deltas to the frontend
         stream.on("text", (delta) => {
           write(part("0", delta));
         });
@@ -222,6 +243,7 @@ export async function POST(req: Request) {
         const message = await stream.finalMessage();
 
         // Collect tool_use blocks
+        const pendingToolUses: Array<{ id: string; name: string; input: unknown }> = [];
         for (const block of message.content) {
           if (block.type === "tool_use") {
             pendingToolUses.push({
@@ -229,18 +251,18 @@ export async function POST(req: Request) {
               name: block.name,
               input: block.input,
             });
-            // Emit tool call to frontend
+            // Emit tool call to the frontend
             write(
               part("9", {
                 toolCallId: block.id,
                 toolName: block.name,
                 args: block.input,
-              })
+              }),
             );
           }
         }
 
-        // Add assistant turn to history
+        // Add the assistant turn to history
         currentMessages.push({
           role: "assistant",
           content: message.content as unknown as Array<{
@@ -249,7 +271,7 @@ export async function POST(req: Request) {
           }>,
         });
 
-        // No tool calls — done
+        // No tool calls: done
         if (message.stop_reason !== "tool_use" || pendingToolUses.length === 0) {
           break;
         }
@@ -258,6 +280,8 @@ export async function POST(req: Request) {
         const toolResults: Array<{ type: string; [key: string]: unknown }> = [];
 
         for (const toolUse of pendingToolUses) {
+          if (req.signal.aborted) break;
+
           let resultContent:
             | string
             | Array<{ type: string; [key: string]: unknown }>;
@@ -267,11 +291,11 @@ export async function POST(req: Request) {
             if (toolUse.name === "computer") {
               const execute = computerExecute(sandboxId);
               const raw = await execute(
-                toolUse.input as Parameters<typeof execute>[0]
+                toolUse.input as Parameters<typeof execute>[0],
               );
-              // Emit tool result to frontend
+              // Emit tool result to the frontend
               write(part("a", { toolCallId: toolUse.id, result: raw }));
-              // Build Anthropic tool_result content
+              // Build the Anthropic tool_result content
               if (raw && typeof raw === "object" && raw.type === "image") {
                 resultContent = [
                   {
@@ -283,11 +307,7 @@ export async function POST(req: Request) {
                     },
                   },
                 ];
-              } else if (
-                raw &&
-                typeof raw === "object" &&
-                raw.type === "text"
-              ) {
+              } else if (raw && typeof raw === "object" && raw.type === "text") {
                 resultContent = raw.text;
               } else {
                 resultContent = JSON.stringify(raw);
@@ -295,7 +315,7 @@ export async function POST(req: Request) {
             } else if (toolUse.name === "bash") {
               const execute = bashExecute(sandboxId);
               const raw = await execute(
-                toolUse.input as Parameters<typeof execute>[0]
+                toolUse.input as Parameters<typeof execute>[0],
               );
               write(part("a", { toolCallId: toolUse.id, result: raw }));
               resultContent = raw;
@@ -304,12 +324,9 @@ export async function POST(req: Request) {
               isError = true;
             }
           } catch (err) {
-            resultContent =
-              err instanceof Error ? err.message : String(err);
+            resultContent = err instanceof Error ? err.message : String(err);
             isError = true;
-            write(
-              part("a", { toolCallId: toolUse.id, result: resultContent })
-            );
+            write(part("a", { toolCallId: toolUse.id, result: resultContent }));
           }
 
           toolResults.push({
@@ -320,23 +337,34 @@ export async function POST(req: Request) {
           });
         }
 
-        // Add tool results as user turn for next iteration
+        // The client left mid-step: stop before sending anything else to the model
+        if (req.signal.aborted) break;
+
+        // Add tool results as the user turn for the next iteration
         currentMessages.push({ role: "user", content: toolResults });
 
         // Emit finish_step so useChat knows this step is done
         write(part("e", { finishReason: "tool-calls" }));
       }
 
+      if (hitCap) {
+        write(
+          part(
+            "0",
+            `\n\nStopped after ${MAX_STEPS} steps to keep demo usage bounded.`,
+          ),
+        );
+      }
+
       write(part("e", { finishReason: "stop" }));
       write(part("d", { finishReason: "stop" }));
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error("[chat/route] error:", msg);
-      try {
-        write(part("3", msg));
-      } catch {
-        // client disconnected
-      }
+      if (req.signal.aborted) return; // client left, nothing to report
+      console.error(
+        "[chat/route] error:",
+        err instanceof Error ? err.message : String(err),
+      );
+      write(part("3", "The request failed. Please try again."));
     } finally {
       try {
         await writer.close();

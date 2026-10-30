@@ -2,9 +2,13 @@
 
 import { Sandbox } from "@vercel/sandbox";
 import { resolution } from "./tool";
+import { headers } from "next/headers";
+import { checkLimit, ipFrom, signSandbox, verifySandbox } from "@/lib/guard";
+
 
 const NOVNC_PORT = 6080;
 const DISPLAY_ENV = { DISPLAY: ":99" };
+class DemoLimitError extends Error {}
 
 export type GetDesktopOptions = {
   /**
@@ -35,6 +39,9 @@ export const getDesktop = async (id?: string, opts?: GetDesktopOptions) => {
         );
       }
     }
+    
+    const gate = await checkLimit("sandbox", ipFrom(await headers()));
+    if (!gate.ok) throw new DemoLimitError(gate.error);
 
     const sandbox = await Sandbox.create({
       source: {
@@ -58,20 +65,26 @@ export const getDesktop = async (id?: string, opts?: GetDesktopOptions) => {
     // Wait for noVNC to be ready
     await waitForNoVNC(sandbox);
 
+    await sandbox.runCommand({
+      cmd: "bash",
+      args: ["-c", "mkdir -p ~/Desktop"],
+      env: DISPLAY_ENV,
+    });
+
     // Set background color (ctypes.util is missing on AL2023, load libX11 directly)
     await sandbox.runCommand({
       cmd: "python3",
       args: [
         "-c",
         `import ctypes
-lib = ctypes.cdll.LoadLibrary('libX11.so.6')
-d = lib.XOpenDisplay(None)
-s = lib.XDefaultScreen(d)
-r = lib.XRootWindow(d, s)
-lib.XSetWindowBackground(d, r, 0x2D2D2D)
-lib.XClearWindow(d, r)
-lib.XFlush(d)
-lib.XCloseDisplay(d)`,
+          lib = ctypes.cdll.LoadLibrary('libX11.so.6')
+          d = lib.XOpenDisplay(None)
+          s = lib.XDefaultScreen(d)
+          r = lib.XRootWindow(d, s)
+          lib.XSetWindowBackground(d, r, 0x2D2D2D)
+          lib.XClearWindow(d, r)
+          lib.XFlush(d)
+          lib.XCloseDisplay(d)`,
       ],
       env: DISPLAY_ENV,
     });
@@ -81,7 +94,7 @@ lib.XCloseDisplay(d)`,
       cmd: "bash",
       args: [
         "-c",
-        "google-chrome --no-sandbox --disable-gpu --no-first-run --disable-dev-shm-usage --start-maximized 'about:blank' &",
+        "google-chrome --test-type --no-sandbox --disable-gpu --no-first-run --disable-dev-shm-usage --start-maximized 'about:blank' &",
       ],
       env: DISPLAY_ENV,
       detached: true,
@@ -121,19 +134,32 @@ export const getDesktopURL = async (id?: string) => {
     const sandbox = await getDesktop(id, { allowRecreate: true });
     const baseUrl = sandbox.domain(NOVNC_PORT);
     const streamUrl = `${baseUrl}/vnc.html?autoconnect=true&resize=scale&reconnect=true`;
-
-    return { streamUrl, id: sandbox.sandboxId };
+    return {
+      ok: true as const,
+      streamUrl,
+      id: sandbox.sandboxId,
+      token: signSandbox(sandbox.sandboxId),
+    };
   } catch (error) {
     console.error("Error in getDesktopURL:", error);
-    throw error;
+    return {
+      ok: false as const,
+      error:
+        error instanceof DemoLimitError
+          ? error.message
+          : "Could not start the desktop. Please try again.",
+    };
   }
 };
 
-export const killDesktop = async (id: string) => {
+export const killDesktop = async (id: string, token: string): Promise<boolean> => {
+  if (!verifySandbox(token, id)) return false;
   try {
     const sandbox = await Sandbox.get({ sandboxId: id });
     await sandbox.stop();
+    return true;
   } catch (error) {
     console.error("Error killing desktop:", error);
+    return false;
   }
 };

@@ -1,28 +1,18 @@
 import { killDesktop } from "@/lib/sandbox/utils";
 
-// Common handler for both GET and POST requests
-async function handleKillDesktop(request: Request) {
-  // Enable CORS to ensure this works across all browsers
-
-  const { searchParams } = new URL(request.url);
-  const sandboxId = searchParams.get("sandboxId");
-
-  console.log(`Kill desktop request received via ${request.method} for ID: ${sandboxId}`);
-
-  if (!sandboxId) {
-    return new Response("No sandboxId provided", { status: 400 });
-  }
-
-  try {
-    await killDesktop(sandboxId);
-    return new Response("Desktop killed successfully", { status: 200 });
-  } catch (error) {
-    console.error(`Failed to kill desktop with ID: ${sandboxId}`, error);
-    return new Response("Failed to kill desktop", { status: 500 });
-  }
-}
-
-// Handle POST requests
+// Called with navigator.sendBeacon when a tab closes or a desktop is replaced.
+// The signed token proves the caller created this sandbox, so nobody else can stop it.
 export async function POST(request: Request) {
-  return handleKillDesktop(request);
+  const body = await request.json().catch(() => null);
+  const sandboxId = body?.sandboxId;
+  const token = body?.token;
+
+  if (typeof sandboxId !== "string" || typeof token !== "string") {
+    return new Response("Missing sandboxId or token", { status: 400 });
+  }
+
+  const ok = await killDesktop(sandboxId, token);
+  return new Response(ok ? "Stopped" : "Not allowed or already stopped", {
+    status: ok ? 200 : 403,
+  });
 }

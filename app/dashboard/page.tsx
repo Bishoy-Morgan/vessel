@@ -26,7 +26,8 @@ import { ComputerToolCall, ToolCall } from "@/src/types";
 
 export default function Chat() {
   const [desktopContainerRef, desktopEndRef] = useScrollToBottom();
-  const [isInitializing, setIsInitializing] = useState(true);
+  const [sandboxToken, setSandboxToken] = useState<string | null>(null);
+  const [isInitializing, setIsInitializing] = useState(false);
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [sandboxId, setSandboxId] = useState<string | null>(null);
   const [selectedToolCall, setSelectedToolCall] = useState<ToolCall | null>(null);
@@ -51,7 +52,6 @@ export default function Chat() {
   } = useChat({
     api: "/api/chat",
     id: activeSessionId ?? undefined,
-    body: { sandboxId },
     // All tool rounds happen inside `/api/chat` (server-side loop). Setting maxSteps > 1 makes
     // useChat POST again after each completed assistant; that second request corrupts screenshot
     // tool results in history (they get JSON-stringified) and wastes calls.
@@ -100,22 +100,53 @@ export default function Chat() {
     },
     onError: (error) => {
       console.error(error);
-      toast.error("There was an error", {
-        description: "Please try again later.",
-        richColors: true,
-        position: "top-center",
-      });
+      const text = error.message && error.message.length < 200 ? error.message : "There was an error";
+      toast.error(text, { richColors: true, position: "top-center" });
     },
   });
+
+  const deskPromise = useRef<Promise<{ id: string; token: string } | null> | null>(null);
+
+  const ensureDesktop = (force = false) => {
+    if (!force && sandboxId && sandboxToken) {
+      return Promise.resolve({ id: sandboxId, token: sandboxToken });
+    }
+    if (deskPromise.current) return deskPromise.current;
+
+    deskPromise.current = (async () => {
+      setIsInitializing(true);
+      try {
+        const res = await getDesktopURL(force ? undefined : sandboxId ?? undefined);
+        if (!res.ok) {
+          toast.error(res.error, { richColors: true, position: "top-center" });
+          return null;
+        }
+        setStreamUrl(res.streamUrl);
+        setSandboxId(res.id);
+        setSandboxToken(res.token);
+        return { id: res.id, token: res.token };
+      } finally {
+        setIsInitializing(false);
+        deskPromise.current = null;
+      }
+    })();
+
+    return deskPromise.current;
+  };
+
+  const refreshDesktop = () => ensureDesktop(true);
 
   const messagesRef = useRef(messages);
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
 
-  const handleSubmitWithClear = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmitWithClear = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
     useEventStore.getState().clearEvents();
-    handleSubmit(e);
+    const desk = await ensureDesktop();
+    if (!desk) return;
+    handleSubmit(e, { body: { sandboxId: desk.id, sandboxToken: desk.token } });
   };
 
   // Sync messages when active session changes
@@ -158,23 +189,13 @@ export default function Chat() {
 
   const isLoading = status !== "ready";
 
-  const refreshDesktop = async () => {
-    try {
-      setIsInitializing(true);
-      const { streamUrl, id } = await getDesktopURL(sandboxId || undefined);
-      setStreamUrl(streamUrl);
-      setSandboxId(id);
-    } catch (err) {
-      console.error("Failed to refresh desktop:", err);
-    } finally {
-      setIsInitializing(false);
-    }
-  };
-
   useEffect(() => {
     if (!sandboxId) return;
     const killDesktop = () => {
-      navigator.sendBeacon(`/api/kill-desktop?sandboxId=${encodeURIComponent(sandboxId)}`);
+      navigator.sendBeacon(
+        "/api/kill-desktop",
+        new Blob([JSON.stringify({ sandboxId, token: sandboxToken })], { type: "application/json" }),
+      );
     };
     const isIOS =
       /iPad|iPhone|iPod/.test(navigator.userAgent) ||
@@ -188,36 +209,16 @@ export default function Chat() {
       window.addEventListener("beforeunload", killDesktop);
       return () => { window.removeEventListener("beforeunload", killDesktop); killDesktop(); };
     }
-  }, [sandboxId]);
+  }, [sandboxId, sandboxToken]);
 
   useEffect(() => {
-    const init = async () => {
-      try {
-        setIsInitializing(true);
-        const { streamUrl, id } = await getDesktopURL(sandboxId ?? undefined);
-        setStreamUrl(streamUrl);
-        setSandboxId(id);
-        
-        const { sessions, activeSessionId, createSession, setActiveSession } = useChatStore.getState();
-        if (sessions.length === 0) {
-          const time = new Date().toLocaleTimeString('en-US', {
-            hour: '2-digit', 
-            minute: '2-digit',
-            hour12: true
-          });
-          createSession(`Chat ${time}`);
-        } else if (!activeSessionId) {
-          setActiveSession(sessions[0].id);
-        }
-      } catch (err) {
-        console.error("Failed to initialize desktop:", err);
-        toast.error("Failed to initialize desktop");
-      } finally {
-        setIsInitializing(false);
-      }
-    };
-    init();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const { sessions, activeSessionId, createSession, setActiveSession } = useChatStore.getState();
+    if (sessions.length === 0) {
+      const time = new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
+      createSession(`Chat ${time}`);
+    } else if (!activeSessionId) {
+      setActiveSession(sessions[0].id);
+    }
   }, []);
 
   return (
@@ -261,7 +262,14 @@ export default function Chat() {
             {messages.length === 0 && (
               <PromptSuggestions
                 disabled={isInitializing}
-                submitPrompt={(prompt: string) => append({ role: "user", content: prompt })}
+                submitPrompt={async (prompt: string) => {
+                  const desk = await ensureDesktop();
+                  if (!desk) return;
+                  append(
+                    { role: "user", content: prompt },
+                    { body: { sandboxId: desk.id, sandboxToken: desk.token } },
+                  );
+                }}
               />
             )}
 
@@ -304,10 +312,13 @@ export default function Chat() {
 
             {/* VNC Viewer */}
             <div className="flex-1 relative min-h-0">
-              <VNCViewer
-                streamUrl={streamUrl ?? ''}
-                isInitializing={isInitializing}
-              />
+              {streamUrl ? (
+                <VNCViewer streamUrl={streamUrl} isInitializing={isInitializing} />
+              ) : (
+                <div className="flex h-full items-center justify-center text-sm text-[#71717a]">
+                  {isInitializing ? "Starting your desktop…" : "Your desktop starts when you send your first message."}
+                </div>
+              )}
               <Button
                 onClick={refreshDesktop}
                 className="absolute top-3 right-3 bg-black/60 hover:bg-[#2563eb] border border-[#1a1a1a] hover:border-[#2563eb] text-white px-3 py-1.5 rounded-md text-xs z-10 transition-all"
